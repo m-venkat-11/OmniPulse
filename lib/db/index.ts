@@ -33,8 +33,9 @@ export async function runMigrations() {
 
     console.log('[DB] Migrations applied successfully');
   } catch (err) {
-    console.error('[DB] Migration error:', err);
-    throw err;
+    // On serverless (Vercel), schema.sql may not be readable from cwd.
+    // Log warning but do NOT throw — the app will still serve demo data.
+    console.warn('[DB] Migration warning (non-fatal):', err);
   }
 }
 
