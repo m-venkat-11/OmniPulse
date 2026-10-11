@@ -155,6 +155,31 @@ export async function updateClaimAtomStatus(id: string, status: string) {
   });
 }
 
+export async function extractAndSaveClaimsAction(campaignId: string, customText?: string) {
+  await initializeDatabase();
+  const campaign = await getCampaign(campaignId);
+  if (!campaign) throw new Error('Campaign not found');
+
+  const textToAnalyze = customText || `${campaign.objective}\n${campaign.key_message}\n${campaign.name}`;
+  const { extractClaims } = await import('@/lib/ai/adapter');
+  const claimResult = await extractClaims(textToAnalyze, (campaign.brand_name as string) || 'Brand', (campaign.product_name as string) || 'Product');
+
+  for (const claim of claimResult.data.claims) {
+    const claimId = generateId();
+    await turso.execute({
+      sql: `INSERT INTO claim_atoms (id, campaign_id, claim_text, claim_type, locked_tokens, evidence_status, qualifications)
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        claimId, campaignId, claim.claim_text, claim.claim_type,
+        JSON.stringify(claim.locked_tokens), claim.evidence_status, claim.qualifications,
+      ],
+    });
+  }
+
+  return await getClaimAtoms(campaignId);
+}
+
+
 // ═══════════════════════════════════════════════════════
 // REGIONAL ADAPTATION ACTIONS
 // ═══════════════════════════════════════════════════════
@@ -400,6 +425,40 @@ export async function rejectAssetVersion(assetVersionId: string, campaignId: str
 
   return approvalId;
 }
+
+export async function requestChangesAssetVersion(assetVersionId: string, campaignId: string, comments: string) {
+  await initializeDatabase();
+
+  const approvalId = generateId();
+  const version = await getAssetVersion(assetVersionId);
+  if (!version) throw new Error('Asset version not found');
+
+  await turso.execute({
+    sql: `INSERT INTO approvals (id, asset_version_id, content_hash, reviewer_id, decision, review_comments)
+          VALUES (?, ?, ?, 'user-demo', 'needs_changes', ?)`,
+    args: [approvalId, assetVersionId, version.content_hash as string, comments],
+  });
+
+  await turso.execute({
+    sql: 'UPDATE asset_versions SET status = ? WHERE id = ?',
+    args: ['needs_changes', assetVersionId],
+  });
+
+  // Record audit event
+  const eventHash = await computeHash(`approval:${approvalId}:${version.content_hash}:needs_changes`);
+  await turso.execute({
+    sql: `INSERT INTO audit_events (id, workspace_id, campaign_id, actor_id, event_type, entity_type, entity_id, hash, metadata_json)
+          VALUES (?, 'ws-default', ?, 'user-demo', 'changes_requested', 'approval', ?, ?, ?)`,
+    args: [generateId(), campaignId, approvalId, eventHash, JSON.stringify({
+      asset_version_id: assetVersionId,
+      decision: 'needs_changes',
+      comments,
+    })],
+  });
+
+  return approvalId;
+}
+
 
 export async function getApprovals(assetVersionId: string) {
   await initializeDatabase();

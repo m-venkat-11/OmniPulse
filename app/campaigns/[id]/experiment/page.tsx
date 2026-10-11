@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import {
   ArrowLeft, Lock, BarChart3, AlertCircle, Upload, CheckCircle2,
-  FlaskConical, Link2, Sparkles, ChevronRight
+  FlaskConical, Link2, Sparkles, ChevronRight, ShieldAlert, Users,
+  Coins, Info, ArrowRight
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -24,15 +25,18 @@ export default function ExperimentPlannerPage() {
   const [experiments, setExperiments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Form State
+  // Form State (PRD Section 10.1 & FR-022)
   const [hypothesis, setHypothesis] = useState("");
   const [variantAId, setVariantAId] = useState("");
   const [variantBId, setVariantBId] = useState("");
   const [primaryMetric, setPrimaryMetric] = useState("CTR");
-  const [targetRegion, setTargetRegion] = useState("South India");
-  const [attributionWindow, setAttributionWindow] = useState("7-day click");
+  const [guardrailMetrics, setGuardrailMetrics] = useState<string[]>(["Complaint Rate <= 0.2%", "Brand Safety Drift = 0"]);
+  const [audienceSplit, setAudienceSplit] = useState("50/50 Split (Geo-targeted vernacular cohort)");
+  const [plannedBudget, setPlannedBudget] = useState("₹2,50,000 (Planned Testing Budget)");
+  const [targetRegion, setTargetRegion] = useState("South India (Telangana & Andhra Pradesh)");
+  const [attributionWindow, setAttributionWindow] = useState("7-day click / 1-day view");
   const [testDuration, setTestDuration] = useState("14 days");
-  const [successCriteria, setSuccessCriteria] = useState(">= 25% relative lift with p < 0.05 statistical significance");
+  const [decisionRule, setDecisionRule] = useState(">= 25% relative lift with p < 0.05 (Min sample: 20,000 impressions per variant)");
 
   const [isLocking, setIsLocking] = useState(false);
   const [activeExperiment, setActiveExperiment] = useState<any>(null);
@@ -60,10 +64,10 @@ export default function ExperimentPlannerPage() {
         } else if (v.length >= 2) {
           setVariantAId(String(v[0].id));
           setVariantBId(String(v[1].id));
-          setHypothesis(`Regional adaptation with explicit verified fact framing will outperform generic greeting variant by >= 25% in ${v[0].target_language}.`);
+          setHypothesis(`Regional adaptation with authentic verified facts (v${v[0].version_number}) will outperform generic greeting variant (v${v[1].version_number}) by >= 25% in ${v[0].target_language}.`);
         } else if (v.length === 1) {
           setVariantAId(String(v[0].id));
-          setHypothesis(`Variant v${v[0].version_number} in ${v[0].target_language} will drive higher engagement than baseline.`);
+          setHypothesis(`Variant v${v[0].version_number} in ${v[0].target_language} will drive higher engagement than baseline standard copy.`);
         }
       } catch (err) {
         console.error("Failed to load experiment planner:", err);
@@ -87,11 +91,11 @@ export default function ExperimentPlannerPage() {
         variantAId,
         variantBId: variantBId || variantAId,
         primaryMetric,
-        secondaryMetrics: ["Conversion Rate", "VTR", "ROAS"],
+        secondaryMetrics: guardrailMetrics,
         targetRegion,
         attributionWindow,
         testDuration,
-        successCriteria,
+        successCriteria: decisionRule,
       });
 
       await lockExperiment(expId);
@@ -135,7 +139,7 @@ export default function ExperimentPlannerPage() {
                   <Lock size={11} /> PRE-REGISTERED & LOCKED
                 </Badge>
               ) : (
-                <Badge variant="demo" className="text-2xs">DRAFT PLAN</Badge>
+                <Badge variant="demo" className="text-2xs">PRD 10.1 PROTOCOL</Badge>
               )}
             </div>
             <p className="text-xs text-neutral-500">{campaign?.name} • Honest measurement without post-hoc cherry-picking</p>
@@ -151,7 +155,7 @@ export default function ExperimentPlannerPage() {
               disabled={isLocking || variants.length === 0}
               iconRight={<Lock size={14}/>}
             >
-              {isLocking ? "Freezing Plan in DB..." : "Pre-Register & Lock"}
+              {isLocking ? "Freezing Plan in DB..." : "Pre-Register & Lock Plan"}
             </Button>
           ) : (
             <Link href={`/campaigns/${campaignId}/analytics`}>
@@ -164,6 +168,36 @@ export default function ExperimentPlannerPage() {
       </header>
 
       <main className="max-w-4xl mx-auto mt-8 px-6 space-y-6 animate-fade-in">
+
+        {/* PRD Section 10.2 Data Classes Transparency Strip */}
+        <div className="bg-white rounded-xl border border-forest/10 p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-2xs font-semibold uppercase tracking-wider text-neutral-400">
+              PRD Section 10.2: Measurement Integrity Data Classes
+            </span>
+            <span className="text-2xs font-mono text-forest">
+              Anti-HARKing Rule Active
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-2xs">
+            <div className="p-2 rounded bg-sage/20 border border-sage-300">
+              <strong className="text-forest block">OBSERVED</strong>
+              <span className="text-neutral-500 text-3xs">Recorded outcome from API</span>
+            </div>
+            <div className="p-2 rounded bg-blue-50 border border-blue-200">
+              <strong className="text-blue-900 block">IMPORTED</strong>
+              <span className="text-neutral-500 text-3xs">CSV verified with schema</span>
+            </div>
+            <div className="p-2 rounded bg-brass/20 border border-brass/40">
+              <strong className="text-brass-900 block">SYNTHETIC / DEMO</strong>
+              <span className="text-neutral-500 text-3xs">Fabricated for prototype</span>
+            </div>
+            <div className="p-2 rounded bg-purple-50 border border-purple-200">
+              <strong className="text-purple-900 block">PREDICTED</strong>
+              <span className="text-neutral-500 text-3xs">Statistical projection</span>
+            </div>
+          </div>
+        </div>
 
         {/* Locked State Banner */}
         {isLocked && (
@@ -240,7 +274,7 @@ export default function ExperimentPlannerPage() {
             </div>
           </div>
 
-          {/* Section 2: Primary & Guardrail Metrics */}
+          {/* Section 2: Metrics, Guardrails & Attribution */}
           <div className="bg-white rounded-xl border border-forest/10 p-6 shadow-sm space-y-4">
             <h2 className="text-base font-semibold text-graphite flex items-center gap-2">
               <BarChart3 size={18} className="text-forest" />
@@ -274,9 +308,9 @@ export default function ExperimentPlannerPage() {
                   onChange={e => setAttributionWindow(e.target.value)}
                   className="w-full h-10 px-3 rounded-lg border border-forest/15 bg-white text-xs font-medium text-graphite outline-none"
                 >
-                  <option value="7-day click">7-Day Click / 1-Day View</option>
-                  <option value="1-day click">1-Day Click Strict</option>
-                  <option value="28-day click">28-Day Extended Window</option>
+                  <option value="7-day click / 1-day view">7-Day Click / 1-Day View</option>
+                  <option value="1-day click strict">1-Day Click Strict</option>
+                  <option value="28-day click extended">28-Day Extended Window</option>
                 </select>
               </div>
 
@@ -293,16 +327,65 @@ export default function ExperimentPlannerPage() {
               </div>
             </div>
 
+            {/* Guardrail Metrics (PRD Section 10.1) */}
             <div>
               <label className="block text-2xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">
-                Success Decision Rule
+                Guardrail Metrics (Damage & Drift Protection)
+              </label>
+              <div className="flex flex-wrap gap-2 text-xs">
+                {["Complaint Rate <= 0.2%", "Brand Safety Drift = 0", "Unsubscribe Rate < 0.5%", "Negative Sentiment < 3%"].map(g => (
+                  <span key={g} className="px-2.5 py-1 rounded-md bg-sage/10 text-forest border border-forest/10 font-medium">
+                    ✓ {g}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Decision Rule */}
+            <div>
+              <label className="block text-2xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">
+                Success Decision Rule (Pre-registered Interpretation Criteria)
               </label>
               <input
                 type="text"
-                value={successCriteria}
-                onChange={e => setSuccessCriteria(e.target.value)}
+                value={decisionRule}
+                onChange={e => setDecisionRule(e.target.value)}
                 className="w-full h-10 px-3 rounded-lg border border-forest/15 bg-white text-xs font-medium text-graphite outline-none"
               />
+            </div>
+          </div>
+
+          {/* Section 3: Audience & Budget Assumptions */}
+          <div className="bg-white rounded-xl border border-forest/10 p-6 shadow-sm space-y-4">
+            <h2 className="text-base font-semibold text-graphite flex items-center gap-2">
+              <Users size={18} className="text-forest" />
+              3. Audience Split & Budget Assumptions
+            </h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-2xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">
+                  Audience Allocation
+                </label>
+                <input
+                  type="text"
+                  value={audienceSplit}
+                  onChange={e => setAudienceSplit(e.target.value)}
+                  className="w-full h-10 px-3 rounded-lg border border-forest/15 bg-white text-xs font-medium text-graphite outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-2xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">
+                  Planned Testing Budget
+                </label>
+                <input
+                  type="text"
+                  value={plannedBudget}
+                  onChange={e => setPlannedBudget(e.target.value)}
+                  className="w-full h-10 px-3 rounded-lg border border-forest/15 bg-white text-xs font-medium text-graphite outline-none"
+                />
+              </div>
             </div>
           </div>
 

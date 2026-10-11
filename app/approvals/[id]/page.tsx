@@ -7,12 +7,13 @@ import { Badge } from "@/components/ui/Badge";
 import {
   ArrowLeft, Check, CheckCircle2, XCircle, AlertCircle,
   FileText, User, Hash, Lock, ChevronRight, ShieldCheck,
-  AlertTriangle, MessageSquare, Send
+  AlertTriangle, MessageSquare, Send, Edit3, ArrowRight, CornerDownRight
 } from "lucide-react";
 import Link from "next/link";
 import {
   getAssetVersion, getVerificationRuns, getApprovals,
-  approveAssetVersion, rejectAssetVersion
+  approveAssetVersion, rejectAssetVersion, requestChangesAssetVersion,
+  createNewAssetVersion, runVerification
 } from "@/app/actions";
 import { LANGUAGE_REGISTRY } from "@/lib/languages/registry";
 
@@ -28,7 +29,13 @@ export default function ReviewCenterPage() {
 
   const [comments, setComments] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [actionDone, setActionDone] = useState<"approved" | "rejected" | null>(null);
+  const [actionDone, setActionDone] = useState<"approved" | "rejected" | "needs_changes" | null>(null);
+
+  // Quick edit modal state (Diagram 2: Edit -> New Version -> Re-verification)
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editText, setEditText] = useState("");
+  const [editReason, setEditReason] = useState("");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -46,6 +53,8 @@ export default function ReviewCenterPage() {
           setActionDone("approved");
         } else if (v?.status === 'rejected') {
           setActionDone("rejected");
+        } else if (v?.status === 'needs_changes') {
+          setActionDone("needs_changes");
         }
       } catch (err) {
         console.error("Failed to load review data:", err);
@@ -72,10 +81,30 @@ export default function ReviewCenterPage() {
     }
   };
 
+  const handleRequestChanges = async () => {
+    if (!version) return;
+    if (!comments.trim()) {
+      alert("Please provide reviewer feedback specifying what changes are needed.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await requestChangesAssetVersion(versionId, version.campaign_id, comments);
+      setActionDone("needs_changes");
+      setVersion((prev: any) => ({ ...prev, status: 'needs_changes' }));
+      const updatedApprovals = await getApprovals(versionId);
+      setApprovals(updatedApprovals as any[]);
+    } catch (err: any) {
+      alert("Request changes failed: " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleReject = async () => {
     if (!version) return;
     if (!comments.trim()) {
-      alert("Please provide reviewer feedback or reasons for requesting changes.");
+      alert("Please provide reviewer rationale for rejection.");
       return;
     }
     setIsSubmitting(true);
@@ -86,9 +115,37 @@ export default function ReviewCenterPage() {
       const updatedApprovals = await getApprovals(versionId);
       setApprovals(updatedApprovals as any[]);
     } catch (err: any) {
-      alert("Action failed: " + err.message);
+      alert("Rejection failed: " + err.message);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!version || !editText.trim() || !editReason.trim()) return;
+    setIsSavingEdit(true);
+    try {
+      const res = await createNewAssetVersion({
+        assetId: version.asset_id,
+        sourceText: version.source_text,
+        regionalAdaptation: editText,
+        targetLanguage: version.target_language,
+        dialect: version.dialect,
+        tone: version.tone,
+        slangLevel: version.slang_level,
+        formality: version.formality,
+        reasonForEdit: editReason,
+      });
+
+      // Automatically run verification on the new version
+      await runVerification(res.newVersionId, version.campaign_id);
+
+      // Navigate to the new version's review page
+      router.push(`/approvals/${res.newVersionId}`);
+    } catch (err: any) {
+      alert("Failed to save edit: " + err.message);
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -135,7 +192,11 @@ export default function ReviewCenterPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="font-serif text-lg font-semibold text-forest">Review Center</h1>
-              <Badge variant={version.status === 'approved' ? 'success' : version.status === 'rejected' ? 'critical' : 'warning'}>
+              <Badge variant={
+                version.status === 'approved' ? 'success' :
+                version.status === 'rejected' ? 'critical' :
+                version.status === 'needs_changes' ? 'warning' : 'demo'
+              }>
                 {version.status.toUpperCase()}
               </Badge>
             </div>
@@ -155,7 +216,16 @@ export default function ReviewCenterPage() {
                 disabled={isSubmitting}
                 className="text-red-700 hover:bg-red-50 border-red-200"
               >
-                Request Revision
+                Reject
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRequestChanges}
+                disabled={isSubmitting}
+                className="text-amber-800 hover:bg-amber-50 border-amber-200"
+              >
+                Request Changes
               </Button>
               <Button
                 variant="primary"
@@ -164,7 +234,7 @@ export default function ReviewCenterPage() {
                 disabled={isSubmitting || blockers.length > 0}
                 iconRight={<Check size={14}/>}
               >
-                {isSubmitting ? "Recording Decision..." : "Approve Version"}
+                {isSubmitting ? "Recording Decision..." : "Approve Exact Version"}
               </Button>
             </>
           ) : (
@@ -177,222 +247,359 @@ export default function ReviewCenterPage() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto mt-8 px-6 grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
+      <main className="max-w-5xl mx-auto mt-8 px-6 space-y-6 animate-fade-in">
 
-        {/* Left Column (2 Cols): Asset, Diff & Findings */}
-        <div className="lg:col-span-2 space-y-6">
-
-          {/* Approved Banner */}
-          {actionDone === "approved" && (
-            <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-start gap-3 animate-fade-in">
-              <CheckCircle2 size={20} className="text-green-600 shrink-0 mt-0.5" />
-              <div>
-                <h3 className="text-sm font-bold text-green-900">Version Approved & Immutable</h3>
-                <p className="text-xs text-green-700 mt-1">
-                  This exact content hash has been cryptographically locked in the Turso audit trail. It is authorized for Creator Briefing and A/B Testing.
-                </p>
-              </div>
+        {/* Diagram 2 State Machine Visual Pipeline Banner */}
+        <div className="bg-white rounded-xl border border-forest/10 p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-2xs font-semibold uppercase tracking-wider text-neutral-400">
+              PRD Diagram 2: Approval State Machine & Version-Lock Invariant
+            </span>
+            <span className="text-2xs text-forest font-mono">
+              Immutable Content Hash Invariant
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-1 text-2xs overflow-x-auto py-1">
+            <div className="px-2.5 py-1.5 rounded-lg bg-forest/5 text-neutral-600 font-medium whitespace-nowrap">
+              Draft (v{version.version_number})
             </div>
-          )}
-
-          {/* Blocker Alert */}
-          {blockers.length > 0 && actionDone !== "approved" && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
-              <AlertTriangle size={20} className="text-red-600 shrink-0 mt-0.5" />
-              <div>
-                <h3 className="text-sm font-bold text-red-900">Brand Guardian Blockers Detected ({blockers.length})</h3>
-                <p className="text-xs text-red-700 mt-1">
-                  This version contains critical rule violations or unapproved medical claims. You must resolve or request revisions before approving.
-                </p>
-              </div>
+            <ArrowRight size={12} className="text-neutral-400 shrink-0" />
+            <div className="px-2.5 py-1.5 rounded-lg bg-forest/5 text-neutral-600 font-medium whitespace-nowrap">
+              Generated
             </div>
-          )}
-
-          {/* Main Version Card */}
-          <div className="bg-white rounded-xl border border-forest/10 shadow-sm overflow-hidden">
-            <div className="bg-sage/10 p-4 border-b border-forest/5 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-graphite flex items-center gap-2">
-                <FileText size={16} className="text-forest" />
-                Current Asset Copy (v{version.version_number})
-              </h2>
-              <span className="text-2xs font-mono text-neutral-400">
-                SHA-256: {version.content_hash?.slice(0, 18)}...
-              </span>
+            <ArrowRight size={12} className="text-neutral-400 shrink-0" />
+            <div className={`px-2.5 py-1.5 rounded-lg font-medium whitespace-nowrap ${
+              latestRun ? 'bg-sage/20 text-forest' : 'bg-forest/5 text-neutral-600'
+            }`}>
+              Verification ({latestRun ? latestRun.overall_status.toUpperCase() : 'PENDING'})
             </div>
-
-            <div className="p-6 space-y-4">
-              <div>
-                <span className="text-2xs uppercase tracking-widest font-semibold text-neutral-400 block mb-1">
-                  Adapted Text ({version.target_language} {version.dialect ? `• ${version.dialect}` : ""})
-                </span>
-                <div className="bg-ivory/50 p-4 rounded-lg border border-forest/10">
-                  <p
-                    className="text-lg text-graphite leading-relaxed font-medium"
-                    style={{ fontFamily: langConfig?.fontFamily || "inherit" }}
-                  >
-                    {version.regional_adaptation}
-                  </p>
-                </div>
-              </div>
-
-              {version.literal_translation && (
-                <div>
-                  <span className="text-2xs uppercase tracking-widest font-semibold text-forest block mb-1">
-                    Literal English Back-Translation
-                  </span>
-                  <p className="text-xs text-graphite bg-sage/10 p-3 rounded-lg border border-forest/5 italic">
-                    &quot;{version.literal_translation}&quot;
-                  </p>
-                </div>
-              )}
-
-              <div>
-                <span className="text-2xs uppercase tracking-widest font-semibold text-neutral-400 block mb-1">
-                  Original Source Intent (English)
-                </span>
-                <p className="text-xs text-neutral-600 bg-ivory/30 p-2.5 rounded border border-forest/5">
-                  &quot;{version.source_text}&quot;
-                </p>
-              </div>
+            <ArrowRight size={12} className="text-neutral-400 shrink-0" />
+            <div className={`px-2.5 py-1.5 rounded-lg font-bold whitespace-nowrap ${
+              version.status === 'approved' ? 'bg-green-100 text-green-900 border border-green-300' :
+              version.status === 'needs_changes' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+              version.status === 'rejected' ? 'bg-red-100 text-red-900 border border-red-300' :
+              'bg-blue-100 text-blue-900 border border-blue-300'
+            }`}>
+              {version.status === 'approved' ? '✓ Approved Exact Version' :
+               version.status === 'needs_changes' ? '⚠ Needs Changes' :
+               version.status === 'rejected' ? '✕ Rejected' :
+               'Ready for Review'}
             </div>
           </div>
-
-          {/* Brand Guardian Verification Audit Report */}
-          <div className="bg-white rounded-xl border border-forest/10 p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4 pb-2 border-b border-forest/5">
-              <h3 className="font-serif text-base text-forest flex items-center gap-2">
-                <ShieldCheck size={18} className="text-forest" />
-                Brand Guardian Audit Ledger
-              </h3>
-              {latestRun ? (
-                <Badge variant={latestRun.overall_status === 'blocked' ? 'critical' : 'success'}>
-                  {latestRun.overall_status.toUpperCase()}
-                </Badge>
-              ) : (
-                <Badge variant="demo">NOT RUN YET</Badge>
-              )}
-            </div>
-
-            {findings.length === 0 ? (
-              <p className="text-xs text-neutral-500 py-3">No compliance findings recorded for this version.</p>
-            ) : (
-              <div className="space-y-3">
-                {findings.map((f: any) => (
-                  <div key={f.id} className="p-3 rounded-lg border border-forest/10 bg-ivory/30 text-xs">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-semibold text-graphite capitalize">
-                        {f.category?.replace(/_/g, " ")}
-                      </span>
-                      <span className={`text-2xs font-semibold px-2 py-0.5 rounded ${
-                        f.severity === 'critical' ? 'bg-red-100 text-red-800' : 'bg-brass/20 text-brass-800'
-                      }`}>
-                        {f.severity.toUpperCase()}
-                      </span>
-                    </div>
-                    <p className="text-2xs text-red-700 font-mono bg-white p-1.5 rounded border border-forest/5 mb-1">
-                      &quot;{f.flagged_text}&quot;
-                    </p>
-                    <p className="text-neutral-600">{f.explanation}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
         </div>
 
-        {/* Right Column (1 Col): Reviewer Sign-Off & Metadata */}
-        <div className="space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-          {/* Reviewer Action Box */}
-          <div className="bg-white rounded-xl border border-forest/10 p-5 shadow-sm space-y-4">
-            <h3 className="font-serif text-sm font-semibold text-forest flex items-center gap-1.5">
-              <MessageSquare size={16} className="text-forest" />
-              Reviewer Decision & Notes
-            </h3>
+          {/* Left Column (2 Cols): Asset, Diff & Findings */}
+          <div className="lg:col-span-2 space-y-6">
 
-            <div>
-              <label className="block text-2xs uppercase tracking-wider font-semibold text-neutral-400 mb-1">
-                Comments / Feedback
-              </label>
-              <textarea
-                rows={4}
-                value={comments}
-                onChange={e => setComments(e.target.value)}
-                placeholder="Enter review comments or reasoning for approval/rejection..."
-                className="w-full p-3 rounded-lg border border-forest/15 bg-white text-xs focus:ring-2 focus:ring-forest/20 outline-none resize-none"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Button
-                variant="primary"
-                size="sm"
-                className="w-full"
-                onClick={handleApprove}
-                disabled={isSubmitting || blockers.length > 0}
-                iconRight={<Check size={14}/>}
-              >
-                Approve Exact Version
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full text-red-700 hover:bg-red-50 border-red-200"
-                onClick={handleReject}
-                disabled={isSubmitting}
-              >
-                Request Revisions
-              </Button>
-            </div>
-          </div>
-
-          {/* Approval Invariants & Metadata */}
-          <div className="bg-white rounded-xl border border-forest/10 p-5 shadow-sm space-y-3 text-xs">
-            <h4 className="font-semibold text-graphite uppercase tracking-wider text-2xs">
-              System Invariants (PRD FR-016)
-            </h4>
-
-            <div className="space-y-2 text-neutral-600">
-              <div className="flex items-start gap-2">
-                <Lock size={14} className="text-forest shrink-0 mt-0.5" />
-                <span>Approval is bound strictly to the SHA-256 hash of this copy.</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <ShieldCheck size={14} className="text-forest shrink-0 mt-0.5" />
-                <span>Any text edit automatically creates a new unapproved version.</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <User size={14} className="text-forest shrink-0 mt-0.5" />
-                <span>Human sign-off required; no AI-only publishing allowed.</span>
-              </div>
-            </div>
-
-            {approvals.length > 0 && (
-              <div className="pt-3 border-t border-forest/5">
-                <span className="text-2xs uppercase tracking-wider font-semibold text-neutral-400 block mb-2">
-                  Past Decision Log
-                </span>
-                {approvals.map((ap: any) => (
-                  <div key={ap.id} className="p-2 rounded bg-ivory/50 border border-forest/5 mb-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold capitalize text-graphite">{ap.decision}</span>
-                      <span className="text-2xs text-neutral-400">
-                        {ap.reviewed_at ? new Date(ap.reviewed_at).toLocaleDateString() : "—"}
-                      </span>
-                    </div>
-                    {ap.review_comments && (
-                      <p className="text-2xs text-neutral-500 mt-1 italic">&quot;{ap.review_comments}&quot;</p>
-                    )}
-                  </div>
-                ))}
+            {/* Approved Banner */}
+            {actionDone === "approved" && (
+              <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-start gap-3 animate-fade-in">
+                <CheckCircle2 size={20} className="text-green-600 shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="text-sm font-bold text-green-900">Version Approved & Immutable</h3>
+                  <p className="text-xs text-green-700 mt-1">
+                    This exact content hash has been cryptographically locked in the Turso audit trail. It is authorized for Creator Briefing and A/B Testing. Any subsequent edit will spawn a new unapproved draft version v{version.version_number + 1}.
+                  </p>
+                </div>
               </div>
             )}
+
+            {/* Needs Changes Banner */}
+            {actionDone === "needs_changes" && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3 animate-fade-in">
+                <AlertCircle size={20} className="text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="text-sm font-bold text-amber-900">Changes Requested</h3>
+                  <p className="text-xs text-amber-700 mt-1">
+                    Feedback has been dispatched to the creative editor. The author can edit and submit a new revision, which will restart verification.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Blocker Alert */}
+            {blockers.length > 0 && actionDone !== "approved" && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+                <AlertTriangle size={20} className="text-red-600 shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="text-sm font-bold text-red-900">Brand Guardian Blockers Detected ({blockers.length})</h3>
+                  <p className="text-xs text-red-700 mt-1">
+                    This version contains critical rule violations or unapproved medical claims. Approval is blocked until resolved.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Main Version Card */}
+            <div className="bg-white rounded-xl border border-forest/10 shadow-sm overflow-hidden">
+              <div className="bg-sage/10 p-4 border-b border-forest/5 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-graphite flex items-center gap-2">
+                  <FileText size={16} className="text-forest" />
+                  Asset Copy (v{version.version_number})
+                </h2>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      setEditText(version.regional_adaptation);
+                      setEditReason("");
+                      setShowEditModal(true);
+                    }}
+                    icon={<Edit3 size={13} />}
+                  >
+                    Edit Copy
+                  </Button>
+                  <span className="text-2xs font-mono text-neutral-400">
+                    SHA-256: {version.content_hash?.slice(0, 16)}...
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div>
+                  <span className="text-2xs uppercase tracking-widest font-semibold text-neutral-400 block mb-1">
+                    Adapted Text ({version.target_language} {version.dialect ? `• ${version.dialect}` : ""})
+                  </span>
+                  <div className="bg-ivory/50 p-4 rounded-lg border border-forest/10">
+                    <p
+                      className="text-lg text-graphite leading-relaxed font-medium"
+                      style={{ fontFamily: langConfig?.fontFamily || "inherit" }}
+                    >
+                      {version.regional_adaptation}
+                    </p>
+                  </div>
+                </div>
+
+                {version.literal_translation && (
+                  <div>
+                    <span className="text-2xs uppercase tracking-widest font-semibold text-forest block mb-1">
+                      Literal English Back-Translation
+                    </span>
+                    <p className="text-xs text-graphite bg-sage/10 p-3 rounded-lg border border-forest/5 italic">
+                      &quot;{version.literal_translation}&quot;
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <span className="text-2xs uppercase tracking-widest font-semibold text-neutral-400 block mb-1">
+                    Original Source Intent (English)
+                  </span>
+                  <p className="text-xs text-neutral-600 bg-ivory/30 p-2.5 rounded border border-forest/5">
+                    &quot;{version.source_text}&quot;
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Brand Guardian Verification Audit Report */}
+            <div className="bg-white rounded-xl border border-forest/10 p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-forest/5">
+                <h3 className="font-serif text-base text-forest flex items-center gap-2">
+                  <ShieldCheck size={18} className="text-forest" />
+                  Brand Guardian Audit Ledger
+                </h3>
+                {latestRun ? (
+                  <Badge variant={latestRun.overall_status === 'blocked' ? 'critical' : 'success'}>
+                    {latestRun.overall_status.toUpperCase()}
+                  </Badge>
+                ) : (
+                  <Badge variant="demo">NOT RUN YET</Badge>
+                )}
+              </div>
+
+              {findings.length === 0 ? (
+                <p className="text-xs text-neutral-500 py-3">No compliance findings recorded for this version.</p>
+              ) : (
+                <div className="space-y-3">
+                  {findings.map((f: any) => (
+                    <div key={f.id} className="p-3 rounded-lg border border-forest/10 bg-ivory/30 text-xs">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-graphite capitalize">
+                          {f.category?.replace(/_/g, " ")}
+                        </span>
+                        <span className={`text-2xs font-semibold px-2 py-0.5 rounded ${
+                          f.severity === 'critical' ? 'bg-red-100 text-red-800' : 'bg-brass/20 text-brass-800'
+                        }`}>
+                          {f.severity.toUpperCase()}
+                        </span>
+                      </div>
+                      <p className="text-2xs text-red-700 font-mono bg-white p-1.5 rounded border border-forest/5 mb-1">
+                        &quot;{f.flagged_text}&quot;
+                      </p>
+                      <p className="text-neutral-600">{f.explanation}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+          </div>
+
+          {/* Right Column (1 Col): Reviewer Sign-Off & Metadata */}
+          <div className="space-y-6">
+
+            {/* Reviewer Action Box with Diagram 2 Actions */}
+            <div className="bg-white rounded-xl border border-forest/10 p-5 shadow-sm space-y-4">
+              <h3 className="font-serif text-sm font-semibold text-forest flex items-center gap-1.5">
+                <MessageSquare size={16} className="text-forest" />
+                Reviewer Decision & Notes
+              </h3>
+
+              <div>
+                <label className="block text-2xs uppercase tracking-wider font-semibold text-neutral-400 mb-1">
+                  Comments / Feedback Rationale
+                </label>
+                <textarea
+                  rows={4}
+                  value={comments}
+                  onChange={e => setComments(e.target.value)}
+                  placeholder="Enter review comments or reasoning for approval/changes/rejection..."
+                  className="w-full p-3 rounded-lg border border-forest/15 bg-white text-xs focus:ring-2 focus:ring-forest/20 outline-none resize-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="w-full"
+                  onClick={handleApprove}
+                  disabled={isSubmitting || blockers.length > 0}
+                  iconRight={<Check size={14}/>}
+                >
+                  Approve Exact Version
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-amber-900 hover:bg-amber-50 border-amber-300"
+                  onClick={handleRequestChanges}
+                  disabled={isSubmitting}
+                >
+                  Request Changes
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-red-700 hover:bg-red-50 border-red-200"
+                  onClick={handleReject}
+                  disabled={isSubmitting}
+                >
+                  Reject Version
+                </Button>
+              </div>
+            </div>
+
+            {/* Approval Invariants & Metadata */}
+            <div className="bg-white rounded-xl border border-forest/10 p-5 shadow-sm space-y-3 text-xs">
+              <h4 className="font-semibold text-graphite uppercase tracking-wider text-2xs">
+                System Invariants (PRD FR-016)
+              </h4>
+
+              <div className="space-y-2 text-neutral-600">
+                <div className="flex items-start gap-2">
+                  <Lock size={14} className="text-forest shrink-0 mt-0.5" />
+                  <span>Approval is bound strictly to the SHA-256 hash of this copy.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <ShieldCheck size={14} className="text-forest shrink-0 mt-0.5" />
+                  <span>Any text edit automatically creates a new unapproved version.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <User size={14} className="text-forest shrink-0 mt-0.5" />
+                  <span>Human sign-off required; no AI-only publishing allowed.</span>
+                </div>
+              </div>
+
+              {approvals.length > 0 && (
+                <div className="pt-3 border-t border-forest/5">
+                  <span className="text-2xs uppercase tracking-wider font-semibold text-neutral-400 block mb-2">
+                    Past Decision Log
+                  </span>
+                  {approvals.map((ap: any) => (
+                    <div key={ap.id} className="p-2 rounded bg-ivory/50 border border-forest/5 mb-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold capitalize text-graphite">{ap.decision?.replace(/_/g, " ")}</span>
+                        <span className="text-2xs text-neutral-400">
+                          {ap.reviewed_at ? new Date(ap.reviewed_at).toLocaleDateString() : "—"}
+                        </span>
+                      </div>
+                      {ap.review_comments && (
+                        <p className="text-2xs text-neutral-500 mt-1 italic">&quot;{ap.review_comments}&quot;</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
 
         </div>
 
       </main>
+
+      {/* Quick Edit Modal (Diagram 2 Invariant) */}
+      {showEditModal && version && (
+        <div className="fixed inset-0 bg-graphite/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl border border-forest/20 max-w-2xl w-full p-6 shadow-xl space-y-4 animate-fade-in">
+            <div className="flex items-center justify-between pb-3 border-b border-forest/10">
+              <div className="flex items-center gap-2">
+                <Edit3 size={18} className="text-forest" />
+                <h3 className="font-serif text-base text-forest font-semibold">
+                  Edit Copy & Create New Version
+                </h3>
+              </div>
+              <Badge variant="warning" className="text-2xs">VERSION-LOCK INVARIANT</Badge>
+            </div>
+
+            <div className="bg-brass/10 border border-brass/30 p-3 rounded-lg text-xs text-brass-800">
+              <strong>Notice:</strong> Per PRD Invariant FR-016, modifying this copy creates <strong>v{(version.version_number || 1) + 1}</strong> with status <code>draft</code>. Prior approvals will not transfer and Brand Guardian checks will re-run automatically.
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-graphite mb-1">Adapted Copy Text</label>
+              <textarea
+                rows={4}
+                value={editText}
+                onChange={e => setEditText(e.target.value)}
+                className="w-full p-3 rounded-lg border border-forest/20 text-sm font-medium focus:ring-2 focus:ring-forest/20 outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-graphite mb-1">Reason for Edit (Required for Audit Trail)</label>
+              <input
+                type="text"
+                value={editReason}
+                onChange={e => setEditReason(e.target.value)}
+                placeholder="e.g., Regional reviewer minor phrasing polish"
+                className="w-full h-10 px-3 rounded-lg border border-forest/20 text-xs focus:ring-2 focus:ring-forest/20 outline-none"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-forest/10">
+              <Button variant="outline" size="sm" onClick={() => setShowEditModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleSaveEdit}
+                disabled={isSavingEdit || !editText.trim() || !editReason.trim()}
+              >
+                {isSavingEdit ? "Creating v" + ((version.version_number || 1) + 1) + "..." : "Save as v" + ((version.version_number || 1) + 1)}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
