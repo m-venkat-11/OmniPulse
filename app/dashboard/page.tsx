@@ -12,12 +12,14 @@ import {
   CheckCheck, Share2
 } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   getCampaigns, getDashboardStats, seedDemoCampaignAction,
   deleteCampaign, getClaimAtoms, getAssetVersionsForCampaign,
   analyzeAdEvidenceLiveAction, createCampaign
 } from "@/app/actions";
 import { ClaimEvidenceGraph } from "@/components/graph/ClaimEvidenceGraph";
+import { matchDynamicCreators, CreatorProfile } from "@/lib/creators";
 
 export default function DashboardOverviewPage() {
   const [mounted, setMounted] = useState(false);
@@ -65,10 +67,37 @@ export default function DashboardOverviewPage() {
   const [isSavingLiveCampaign, setIsSavingLiveCampaign] = useState(false);
   const [copiedBrief, setCopiedBrief] = useState(false);
 
+  const searchParams = useSearchParams();
+
+  // Switch tab and sync with top navigation
+  const switchTab = (tab: "overview" | "ad-evidence" | "graph" | "creators" | "demos") => {
+    setActiveTab(tab);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("switch-dashboard-tab", { detail: { tab } }));
+      const newUrl = tab === "overview" ? "/dashboard" : `/dashboard?tab=${tab}`;
+      window.history.pushState(null, "", newUrl);
+    }
+  };
+
   useEffect(() => {
     setMounted(true);
     loadData();
-  }, []);
+
+    // Listen to query params
+    const tabParam = searchParams?.get("tab");
+    if (tabParam && ["overview", "ad-evidence", "graph", "creators", "demos"].includes(tabParam)) {
+      setActiveTab(tabParam as any);
+    }
+
+    // Listen to window tab switch events from TopNav
+    const handleSwitch = (e: any) => {
+      if (e.detail?.tab && ["overview", "ad-evidence", "graph", "creators", "demos"].includes(e.detail.tab)) {
+        setActiveTab(e.detail.tab);
+      }
+    };
+    window.addEventListener("switch-dashboard-tab", handleSwitch);
+    return () => window.removeEventListener("switch-dashboard-tab", handleSwitch);
+  }, [searchParams]);
 
   const loadData = async () => {
     try {
@@ -79,15 +108,8 @@ export default function DashboardOverviewPage() {
       setCampaigns(campaignData as any[]);
       setStats(statsData);
 
-      if (campaignData.length > 0) {
-        const topCampaign = campaignData[0];
-        const [cl, vr] = await Promise.all([
-          getClaimAtoms(String(topCampaign.id)),
-          getAssetVersionsForCampaign(String(topCampaign.id)),
-        ]);
-        setActiveClaims(cl as any[]);
-        setActiveVariants(vr as any[]);
-      }
+      // Initialize default realistic claims and creators for active preset
+      applyPresetScenario('millet');
     } catch (err) {
       console.error("Failed to load dashboard:", err);
     } finally {
@@ -100,7 +122,7 @@ export default function DashboardOverviewPage() {
     try {
       await seedDemoCampaignAction(type);
       await loadData();
-      setActiveTab("overview");
+      switchTab("overview");
     } catch (err: any) {
       alert("Seeding failed: " + err.message);
     } finally {
@@ -121,6 +143,7 @@ export default function DashboardOverviewPage() {
 
     setIsAnalyzingLive(true);
     try {
+      const storedSarvamKey = typeof window !== "undefined" ? localStorage.getItem("SARVAM_API_KEY") || undefined : undefined;
       const res = await analyzeAdEvidenceLiveAction({
         adCopy: liveAdCopy,
         brandName: liveBrand,
@@ -132,6 +155,7 @@ export default function DashboardOverviewPage() {
         tone: liveTone,
         productPhoto: productPhotoEvidence,
         brandGuidelinesDoc: brandGuidelinesDoc,
+        sarvamApiKey: storedSarvamKey,
       });
       setLiveResult(res);
 
@@ -190,7 +214,7 @@ export default function DashboardOverviewPage() {
 
       await loadData();
       alert(`Campaign "${campaignName}" saved to database successfully!`);
-      setActiveTab("overview");
+      switchTab("overview");
     } catch (err: any) {
       alert("Failed to save campaign: " + err.message);
     } finally {
@@ -201,38 +225,161 @@ export default function DashboardOverviewPage() {
   // Quick preset loader for realistic verification scenarios
   const applyPresetScenario = (scenario: 'millet' | 'smartphone' | 'juice') => {
     if (scenario === 'millet') {
-      setLiveBrand("Rasa Foods");
-      setLiveProduct("Festive Millet Bites");
-      setLiveCategory("Packaged Foods & Nutrition");
-      setLiveLanguage("Telugu");
-      setLiveRegion("Telangana & Andhra Pradesh");
-      setLiveAudience("Health-conscious Homemakers (28-45)");
-      setLiveTone("Festive Warm & Trustworthy");
-      setProductPhotoEvidence("Packaging Front: 'Rasa Festive Millet Bites - 100% Whole Barnyard Millet'. Nutrition Table: Dietary Fiber 12g (4x vs 3g wheat baseline). 0g added sugar. NABL Cert #2026-F09. FSSAI Lic #10020042000123.");
-      setBrandGuidelinesDoc("Brand Rule 1: No cure words permitted. Rule 2: Comparative fiber claims require 'vs wheat biscuit' baseline. Rule 3: Maintain warm Telugu idiom.");
-      setLiveAdCopy("Rasa Festive Millet Bites are baked with 100% whole grain barnyard millet and offer 4x higher dietary fiber than ordinary wheat cookies. Our patented herbal formula permanently cures morning acidity in 24 hours!");
+      const b = "Rasa Foods";
+      const p = "Festive Millet Bites";
+      const cat = "Packaged Foods & Nutrition";
+      const l = "Telugu";
+      const r = "Telangana & Andhra Pradesh";
+      const aud = "Health-conscious Homemakers (28-45)";
+      const t = "Festive Warm & Trustworthy";
+      const photo = "Packaging Front: 'Rasa Festive Millet Bites - 100% Whole Barnyard Millet'. Nutrition Table: Dietary Fiber 12g (4x vs 3g wheat baseline). 0g added sugar. NABL Cert #2026-F09. FSSAI Lic #10020042000123.";
+      const guide = "Brand Rule 1: No cure words permitted. Rule 2: Comparative fiber claims require 'vs wheat biscuit' baseline. Rule 3: Maintain warm Telugu idiom.";
+      const copy = "Rasa Festive Millet Bites are baked with 100% whole grain barnyard millet and offer 4x higher dietary fiber than ordinary wheat cookies. Our patented herbal formula permanently cures morning acidity in 24 hours!";
+
+      setLiveBrand(b);
+      setLiveProduct(p);
+      setLiveCategory(cat);
+      setLiveLanguage(l);
+      setLiveRegion(r);
+      setLiveAudience(aud);
+      setLiveTone(t);
+      setProductPhotoEvidence(photo);
+      setBrandGuidelinesDoc(guide);
+      setLiveAdCopy(copy);
+
+      const claims = [
+        { id: "cl-1", claim_text: "100% whole grain barnyard millet formulation", evidence_status: "supported", claim_type: "product_spec", qualifications: "Packaging Front & FSSAI Lic #10020042000123" },
+        { id: "cl-2", claim_text: "4x higher dietary fiber vs standard wheat cookies", evidence_status: "supported", claim_type: "comparative", qualifications: "NABL Accredited Lab Certificate #2026-F09 (12g vs 3g baseline)" },
+        { id: "cl-3", claim_text: "Patented herbal formula permanently cures morning acidity in 24 hours", evidence_status: "contradicted", claim_type: "prohibited_claim", qualifications: "Prohibited by ASCI Food Code Chapter 1.4 & Drugs & Magic Remedies Act" }
+      ];
+      setActiveClaims(claims);
+
+      const variants = [
+        { id: "var-te", target_language: "Telugu", dialect: "Telangana & AP", status: "approved", regional_adaptation: "రాసా మిల్లెట్ బైట్స్: 100% జొన్నలు మరియు 4x పీచు పదార్థంతో మీ కుటుంబానికి సంపూర్ణ ఆరోగ్యం.", version_number: 1 },
+        { id: "var-hi", target_language: "Hindi", dialect: "National", status: "approved", regional_adaptation: "रासा मिलेट बाइट्स: 100% साबुत बाजरे और 4 गुना अधिक फाइबर के साथ आपके परिवार की पौष्टिक पसंद।", version_number: 1 }
+      ];
+      setActiveVariants(variants);
+
+      const creators = matchDynamicCreators({ brand: b, product: p, category: cat, language: l, region: r, audience: aud });
+      setLiveResult({
+        overallScore: 48,
+        asciComplianceStatus: 'warning',
+        asciViolationsCount: 1,
+        summary: `Audit for ${b} ${p}: Ad copy contains supported product specs (100% millet, 4x fiber) but includes an unverified health cure claim flagged under ASCI Chapter 1.4.`,
+        claims: claims.map(c => ({ id: c.id, claimText: c.claim_text, evidenceStatus: c.evidence_status, claimType: c.claim_type, qualifications: c.qualifications, evidenceCitation: c.qualifications })),
+        regionalAdaptations: variants.map(v => ({ language: v.target_language, dialect: v.dialect, adaptation: v.regional_adaptation, status: v.status, note: "Adaptive idiom preservation" })),
+        matchedCreators: creators,
+        dualAiStatus: {
+          geminiActive: true,
+          geminiModel: "gemini-3.8-flash",
+          sarvamActive: typeof window !== "undefined" && !!localStorage.getItem("SARVAM_API_KEY"),
+          orchestrationNote: "Gemini 3.8 Active • Ready for Live ASCI & Product Audit"
+        }
+      });
     } else if (scenario === 'smartphone') {
-      setLiveBrand("NavTech Mobile");
-      setLiveProduct("NavTech Neo 5G");
-      setLiveCategory("Consumer Tech & Mobile Electronics");
-      setLiveLanguage("Tamil");
-      setLiveRegion("Tamil Nadu (Chennai / Coimbatore)");
-      setLiveAudience("Tier-2 Tech Youth (18-28)");
-      setLiveTone("Energetic & Tech-Forward");
-      setProductPhotoEvidence("Product Spec Label: 'NavTech Neo 5G - 5000mAh Battery (Typical: 4900mAh min), 120Hz AMOLED, 50MP Sony Sensor, 33W Fast Charging'. BIS Certification #R-41012345.");
-      setBrandGuidelinesDoc("Rule 1: Never state '2-day battery life' without standard test disclaimer (50% brightness, lab conditions). Rule 2: 5G speed claims must cite network availability disclaimers.");
-      setLiveAdCopy("NavTech Neo 5G guarantees an unstoppable 48-hour battery life on continuous heavy gaming with 120Hz AMOLED and India's fastest 5G processor under ₹15,000!");
+      const b = "NavTech Mobile";
+      const p = "NavTech Neo 5G";
+      const cat = "Consumer Tech & Mobile Electronics";
+      const l = "Tamil";
+      const r = "Tamil Nadu (Chennai / Coimbatore)";
+      const aud = "Tier-2 Tech Youth (18-28)";
+      const t = "Energetic & Tech-Forward";
+      const photo = "Product Spec Label: 'NavTech Neo 5G - 5000mAh Battery (Typical: 4900mAh min), 120Hz AMOLED, 50MP Sony Sensor, 33W Fast Charging'. BIS Certification #R-41012345.";
+      const guide = "Rule 1: Never state '2-day battery life' without standard test disclaimer (50% brightness, lab conditions). Rule 2: 5G speed claims must cite network availability disclaimers.";
+      const copy = "NavTech Neo 5G guarantees an unstoppable 48-hour battery life on continuous heavy gaming with 120Hz AMOLED and India's fastest 5G processor under ₹15,000!";
+
+      setLiveBrand(b);
+      setLiveProduct(p);
+      setLiveCategory(cat);
+      setLiveLanguage(l);
+      setLiveRegion(r);
+      setLiveAudience(aud);
+      setLiveTone(t);
+      setProductPhotoEvidence(photo);
+      setBrandGuidelinesDoc(guide);
+      setLiveAdCopy(copy);
+
+      const claims = [
+        { id: "cl-1", claim_text: "5000mAh Battery with 33W Fast Charging", evidence_status: "supported", claim_type: "product_spec", qualifications: "BIS Certification #R-41012345 & Lab Spec Sheet" },
+        { id: "cl-2", claim_text: "120Hz AMOLED Display with 50MP Sony Sensor under ₹15,000", evidence_status: "supported", claim_type: "product_spec", qualifications: "Official Product Specification v2.4" },
+        { id: "cl-3", claim_text: "Guarantees unstoppable 48-hour continuous heavy gaming battery life", evidence_status: "contradicted", claim_type: "prohibited_claim", qualifications: "Violates ASCI Rule 3: Benchmark claim missing mandatory laboratory condition disclaimers" }
+      ];
+      setActiveClaims(claims);
+
+      const variants = [
+        { id: "var-ta", target_language: "Tamil", dialect: "Chennai / Madurai", status: "approved", regional_adaptation: "நவ்டெக் நியோ 5G: இடைவிடாத பேட்டரி திறன் மற்றும் அதிவேக 120Hz திரையுடன் உங்கள் விரல்நுனியில் சிறந்த கேமிங் அனுபவம்.", version_number: 1 },
+        { id: "var-hi", target_language: "Hindi", dialect: "National", status: "approved", regional_adaptation: "नवटेक नियो 5G: दमदार 5000mAh बैटरी और 120Hz एमोलेड डिस्प्ले के साथ सबसे किफायती 5G स्मार्टफोन।", version_number: 1 }
+      ];
+      setActiveVariants(variants);
+
+      const creators = matchDynamicCreators({ brand: b, product: p, category: cat, language: l, region: r, audience: aud });
+      setLiveResult({
+        overallScore: 52,
+        asciComplianceStatus: 'warning',
+        asciViolationsCount: 1,
+        summary: `Audit for ${b} ${p}: Core battery & screen specs verified against BIS certification, but 48-hr gaming promise lacks mandatory test condition disclosure under ASCI Code.`,
+        claims: claims.map(c => ({ id: c.id, claimText: c.claim_text, evidenceStatus: c.evidence_status, claimType: c.claim_type, qualifications: c.qualifications, evidenceCitation: c.qualifications })),
+        regionalAdaptations: variants.map(v => ({ language: v.target_language, dialect: v.dialect, adaptation: v.regional_adaptation, status: v.status, note: "Tamil tech terminology calibration" })),
+        matchedCreators: creators,
+        dualAiStatus: {
+          geminiActive: true,
+          geminiModel: "gemini-3.8-flash",
+          sarvamActive: typeof window !== "undefined" && !!localStorage.getItem("SARVAM_API_KEY"),
+          orchestrationNote: "Gemini 3.8 Active • Ready for Live ASCI & Product Audit"
+        }
+      });
     } else if (scenario === 'juice') {
-      setLiveBrand("ManaFresh Beverages");
-      setLiveProduct("Organic Mango Nectar");
-      setLiveCategory("Packaged Foods & Nutrition");
-      setLiveLanguage("Marathi");
-      setLiveRegion("Maharashtra (Mumbai / Pune / Konkan)");
-      setLiveAudience("Family Decision Makers & Parents");
-      setLiveTone("Pure, Natural & Nostalgic");
-      setProductPhotoEvidence("Packaging Front: 'ManaFresh 100% Alphonso Mango Nectar - Zero Added Preservatives, No Artificial Colors'. FSSAI Logo, Jaivik Bharat Organic Certificate #JB-9872.");
-      setBrandGuidelinesDoc("Rule 1: 'Organic' claim requires Jaivik Bharat seal citation. Rule 2: Do not claim 'prevents viral seasonal fevers'. Rule 3: Use authentic Konkani / Marathi mango heritage terminology.");
-      setLiveAdCopy("ManaFresh brings 100% authentic Ratnagiri Alphonso mango nectar with zero preservatives. Daily consumption naturally boosts immunity and permanently protects against viral infections!");
+      const b = "ManaFresh Beverages";
+      const p = "Organic Mango Nectar";
+      const cat = "Packaged Foods & Nutrition";
+      const l = "Marathi";
+      const r = "Maharashtra (Mumbai / Pune / Konkan)";
+      const aud = "Family Decision Makers & Parents";
+      const t = "Pure, Natural & Nostalgic";
+      const photo = "Packaging Front: 'ManaFresh 100% Alphonso Mango Nectar - Zero Added Preservatives, No Artificial Colors'. FSSAI Logo, Jaivik Bharat Organic Certificate #JB-9872.";
+      const guide = "Rule 1: 'Organic' claim requires Jaivik Bharat seal citation. Rule 2: Do not claim 'prevents viral seasonal fevers'. Rule 3: Use authentic Konkani / Marathi mango heritage terminology.";
+      const copy = "ManaFresh brings 100% authentic Ratnagiri Alphonso mango nectar with zero preservatives. Daily consumption naturally boosts immunity and permanently protects against viral infections!";
+
+      setLiveBrand(b);
+      setLiveProduct(p);
+      setLiveCategory(cat);
+      setLiveLanguage(l);
+      setLiveRegion(r);
+      setLiveAudience(aud);
+      setLiveTone(t);
+      setProductPhotoEvidence(photo);
+      setBrandGuidelinesDoc(guide);
+      setLiveAdCopy(copy);
+
+      const claims = [
+        { id: "cl-1", claim_text: "100% authentic Ratnagiri Alphonso mango nectar with zero preservatives", evidence_status: "supported", claim_type: "product_spec", qualifications: "Jaivik Bharat Organic Seal #JB-9872 & FSSAI Lic #10020042000123" },
+        { id: "cl-2", claim_text: "Zero artificial colors or chemical preservatives formulation", evidence_status: "supported", claim_type: "product_spec", qualifications: "Packaging Declarations & Certified Batch Inspection" },
+        { id: "cl-3", claim_text: "Daily consumption permanently protects against viral infections", evidence_status: "contradicted", claim_type: "prohibited_claim", qualifications: "Violates ASCI Food Code Chapter 1.4 & Section 24 FSSAI Advertising Act" }
+      ];
+      setActiveClaims(claims);
+
+      const variants = [
+        { id: "var-mr", target_language: "Marathi", dialect: "Konkan / Pune", status: "approved", regional_adaptation: "मानाफ्रेश सेंद्रिय हापूस रस: अस्सल कोकणी चव आणि शून्य प्रिझर्व्हेटिव्ह्जसह आपल्या कुटुंबाचे आरोग्य जपणारी निसर्गाची देणगी.", version_number: 1 },
+        { id: "var-hi", target_language: "Hindi", dialect: "National", status: "approved", regional_adaptation: "मानाफ्रेश ऑर्गेनिक आम रस: 100% असली हापुस की मिठास और शून्य प्रिजर्वेटिव के साथ आपके परिवार की पहली पसंद।", version_number: 1 }
+      ];
+      setActiveVariants(variants);
+
+      const creators = matchDynamicCreators({ brand: b, product: p, category: cat, language: l, region: r, audience: aud });
+      setLiveResult({
+        overallScore: 50,
+        asciComplianceStatus: 'warning',
+        asciViolationsCount: 1,
+        summary: `Audit for ${b} ${p}: Alphonso purity & zero preservatives verified by Jaivik Bharat seal, but viral protection assertion breaches FSSAI Section 24.`,
+        claims: claims.map(c => ({ id: c.id, claimText: c.claim_text, evidenceStatus: c.evidence_status, claimType: c.claim_type, qualifications: c.qualifications, evidenceCitation: c.qualifications })),
+        regionalAdaptations: variants.map(v => ({ language: v.target_language, dialect: v.dialect, adaptation: v.regional_adaptation, status: v.status, note: "Marathi Konkan idiom preservation" })),
+        matchedCreators: creators,
+        dualAiStatus: {
+          geminiActive: true,
+          geminiModel: "gemini-3.8-flash",
+          sarvamActive: typeof window !== "undefined" && !!localStorage.getItem("SARVAM_API_KEY"),
+          orchestrationNote: "Gemini 3.8 Active • Ready for Live ASCI & Product Audit"
+        }
+      });
     }
   };
 
@@ -346,7 +493,7 @@ export default function DashboardOverviewPage() {
       <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "12px", borderBottom: "1px solid #F3F4F6", paddingBottom: "12px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", overflowX: "auto" }}>
           <button
-            onClick={() => setActiveTab("overview")}
+            onClick={() => switchTab("overview")}
             style={{
               backgroundColor: activeTab === "overview" ? "#11141A" : "transparent",
               color: activeTab === "overview" ? "#FFFFFF" : "#6B7280",
@@ -362,7 +509,7 @@ export default function DashboardOverviewPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab("ad-evidence")}
+            onClick={() => switchTab("ad-evidence")}
             style={{
               backgroundColor: activeTab === "ad-evidence" ? "#11141A" : "transparent",
               color: activeTab === "ad-evidence" ? "#FFFFFF" : "#6B7280",
@@ -382,7 +529,7 @@ export default function DashboardOverviewPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab("graph")}
+            onClick={() => switchTab("graph")}
             style={{
               backgroundColor: activeTab === "graph" ? "#11141A" : "transparent",
               color: activeTab === "graph" ? "#FFFFFF" : "#6B7280",
@@ -402,7 +549,7 @@ export default function DashboardOverviewPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab("creators")}
+            onClick={() => switchTab("creators")}
             style={{
               backgroundColor: activeTab === "creators" ? "#11141A" : "transparent",
               color: activeTab === "creators" ? "#FFFFFF" : "#6B7280",
@@ -422,7 +569,7 @@ export default function DashboardOverviewPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab("demos")}
+            onClick={() => switchTab("demos")}
             style={{
               backgroundColor: activeTab === "demos" ? "#11141A" : "transparent",
               color: activeTab === "demos" ? "#FFFFFF" : "#6B7280",
@@ -757,8 +904,8 @@ export default function DashboardOverviewPage() {
                     {isSavingLiveCampaign ? "Saving to Database..." : "Save as Real Campaign"}
                   </Button>
                   <button
-                    onClick={() => setActiveTab("graph")}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white text-neutral-800 border border-neutral-300 hover:bg-neutral-50 shadow-xs flex items-center gap-1.5"
+                    onClick={() => switchTab("graph")}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white text-neutral-800 border border-neutral-300 hover:bg-neutral-50 shadow-xs flex items-center gap-1.5 cursor-pointer"
                   >
                     <Share2 size={13} className="text-blue-500" />
                     Open Evidence Graph
@@ -902,9 +1049,16 @@ export default function DashboardOverviewPage() {
                       className="space-y-3"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-emerald-800 uppercase tracking-wide">
-                          {ra.language} {ra.dialect ? `(${ra.dialect})` : ""}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-emerald-800 uppercase tracking-wide">
+                            {ra.language} {ra.dialect ? `(${ra.dialect})` : ""}
+                          </span>
+                          {ra.source === 'sarvam-mayura' && (
+                            <span className="text-3xs font-mono font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded border border-amber-300">
+                              SARVAM MAYURA:V1
+                            </span>
+                          )}
+                        </div>
                         <Badge variant="success">APPROVED</Badge>
                       </div>
 
@@ -914,6 +1068,18 @@ export default function DashboardOverviewPage() {
                           {ra.adaptation}
                         </p>
                       </div>
+
+                      {/* Sarvam Romanized Transliteration */}
+                      {ra.transliteration && (
+                        <div>
+                          <span className="text-3xs uppercase tracking-widest font-bold text-amber-800 block mb-1">
+                            Sarvam Phonetic Transliteration (Pronunciation Guide)
+                          </span>
+                          <p className="text-xs text-neutral-800 bg-amber-50/70 border border-amber-200/60 p-2.5 rounded-lg font-mono">
+                            {ra.transliteration}
+                          </p>
+                        </div>
+                      )}
 
                       {/* Literal Back-Translation */}
                       {ra.literalTranslation && (
@@ -1007,8 +1173,8 @@ export default function DashboardOverviewPage() {
               </p>
             </div>
             <button
-              onClick={() => setActiveTab("ad-evidence")}
-              className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-neutral-900 text-white hover:bg-neutral-800 shadow-xs flex items-center gap-1.5"
+              onClick={() => switchTab("ad-evidence")}
+              className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-neutral-900 text-white hover:bg-neutral-800 shadow-xs flex items-center gap-1.5 cursor-pointer"
             >
               <Zap size={13} className="text-amber-400" />
               Test New Ad Copy
@@ -1016,7 +1182,13 @@ export default function DashboardOverviewPage() {
           </div>
 
           <ClaimEvidenceGraph
-            campaign={activeCampaign || { brand_name: liveBrand, product_name: liveProduct }}
+            campaign={{
+              brand_name: liveBrand,
+              product_name: liveProduct,
+              category: liveCategory,
+              target_language: liveLanguage,
+              target_region: liveRegion,
+            }}
             claims={activeClaims}
             variants={activeVariants}
           />
@@ -1088,133 +1260,101 @@ export default function DashboardOverviewPage() {
               variant="outline"
               size="sm"
               onClick={() => {
-                const briefText = `BRACO OMNIPULSE CREATOR BRIEF\nBrand: ${liveBrand}\nProduct: ${liveProduct}\nRegion: ${liveRegion}\nLanguage: ${liveLanguage}\nDeliverables: 1x 30s Instagram Reel + 1x Story\nApproved Claim Atoms:\n- 100% whole grain barnyard millet\n- 4x dietary fiber vs wheat biscuits\nProhibited Claims:\n- Never claim it cures acidity or medical ailments\nMandatory Disclaimers:\n- #Ad #PaidPartnership with ${liveBrand}`;
+                const approvedFacts = activeClaims.filter((c: any) => c.evidence_status === 'supported').map((c: any) => c.claim_text).join('\n• ');
+                const prohibitedFacts = activeClaims.filter((c: any) => c.evidence_status === 'contradicted').map((c: any) => c.claim_text).join('\n• ');
+                const briefText = `BRACO OMNIPULSE CREATOR BRIEF (VERSION-LOCKED)\nBrand: ${liveBrand}\nProduct: ${liveProduct}\nCategory: ${liveCategory}\nRegion: ${liveRegion}\nLanguage: ${liveLanguage}\nAudience: ${liveAudience}\nDeliverables: 1x 30s Instagram Reel + 1x Story\n\nAPPROVED LOCKED CLAIM ATOMS:\n• ${approvedFacts || '100% genuine formulation'}\n\nSTRICTLY PROHIBITED PHRASES:\n• ${prohibitedFacts || 'No unverified medical cures or #1 superlatives'}\n\nMANDATORY STATUTORY DISCLAIMERS:\n• #Ad #PaidPartnership with ${liveBrand}\n• Verify packaging information`;
                 navigator.clipboard.writeText(briefText);
                 setCopiedBrief(true);
                 setTimeout(() => setCopiedBrief(false), 2000);
               }}
               icon={copiedBrief ? <Check size={14}/> : <Copy size={14}/>}
-              className="bg-white border-purple-300 text-purple-900"
+              className="bg-white border-purple-300 text-purple-900 cursor-pointer"
             >
               {copiedBrief ? "Brief Copied!" : "Copy Full Creator Brief"}
             </Button>
           </div>
 
-          {/* 3 Featured Regional Creators matching current settings */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            
-            <div
-              style={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: "20px", padding: "20px" }}
-              className="space-y-4 shadow-sm"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-amber-400 to-rose-400 flex items-center justify-center font-bold text-white text-sm shadow">
-                    PK
+          {/* Dynamic Regional Creators Matched to Active Product & Market */}
+          {(() => {
+            const currentCreators = (liveResult?.matchedCreators && liveResult.matchedCreators.length > 0)
+              ? liveResult.matchedCreators
+              : matchDynamicCreators({
+                  brand: liveBrand,
+                  product: liveProduct,
+                  category: liveCategory,
+                  language: liveLanguage,
+                  region: liveRegion,
+                  audience: liveAudience,
+                  talkingPoints: activeClaims.filter((c: any) => c.evidence_status === 'supported').map((c: any) => c.claim_text),
+                  prohibitedClaims: activeClaims.filter((c: any) => c.evidence_status === 'contradicted').map((c: any) => c.claim_text),
+                });
+
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {currentCreators.map((creator: any, idx: number) => (
+                  <div
+                    key={creator.id || idx}
+                    style={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: "20px", padding: "20px" }}
+                    className="space-y-4 shadow-sm flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-full bg-gradient-to-tr ${creator.avatarGradient || 'from-amber-400 to-rose-400'} flex items-center justify-center font-bold text-white text-sm shadow shrink-0`}>
+                            {creator.initials || creator.name.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-neutral-900 leading-tight">{creator.name}</h4>
+                            <span className="text-2xs text-neutral-500 block">{creator.handle} • {creator.followers}</span>
+                          </div>
+                        </div>
+                        <Badge variant="success">{creator.dialectScore || 98}% FIT</Badge>
+                      </div>
+
+                      <div className="space-y-1.5 text-xs text-neutral-600 bg-neutral-50 p-3 rounded-xl border border-neutral-100 mb-3">
+                        <div className="flex justify-between">
+                          <span>Niche / Focus:</span>
+                          <strong className="text-neutral-900 truncate max-w-[150px]">{creator.niche}</strong>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Dialect Resonance:</span>
+                          <strong className="text-neutral-900">{creator.dialectFit}</strong>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Brand Safety:</span>
+                          <strong className="text-emerald-700">{creator.brandSafetyScore} / 100 (ASCI Safe)</strong>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Engagement:</span>
+                          <strong className="text-neutral-900">{creator.engagement}</strong>
+                        </div>
+                      </div>
+
+                      <div className="text-2xs text-neutral-600">
+                        <strong className="text-neutral-900 block mb-0.5">Recommended Pitch Format:</strong>
+                        {creator.recommendedFormat}
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-neutral-100 flex items-center justify-between text-2xs">
+                      <span className="text-neutral-400 font-mono">Matched for {liveProduct}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const briefText = creator.creatorBrief || `BRACO OMNIPULSE CREATOR BRIEF\nCreator: ${creator.name} (${creator.handle})\nBrand: ${liveBrand}\nProduct: ${liveProduct}\nRegion: ${liveRegion}\nLanguage: ${liveLanguage}\nDeliverables: ${creator.recommendedFormat}`;
+                          navigator.clipboard.writeText(briefText);
+                          alert(`Creator Brief for ${creator.name} copied to clipboard!`);
+                        }}
+                        className="text-purple-700 font-bold hover:text-purple-900 flex items-center gap-1 cursor-pointer bg-purple-50 px-2 py-1 rounded-md"
+                      >
+                        <Copy size={11} /> Copy Brief
+                      </button>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-neutral-900">Priya Krishna</h4>
-                    <span className="text-2xs text-neutral-500">Food & Family Lifestyle • Hyderabad</span>
-                  </div>
-                </div>
-                <Badge variant="success">98% FIT</Badge>
+                ))}
               </div>
-
-              <div className="space-y-1.5 text-xs text-neutral-600 bg-neutral-50 p-3 rounded-xl border border-neutral-100">
-                <div className="flex justify-between">
-                  <span>Language Dialect:</span>
-                  <strong className="text-neutral-900">Telugu (Telangana colloquial)</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span>Audience Match:</span>
-                  <strong className="text-neutral-900">Tier-2 Mothers (25-40)</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span>Brand Safety Score:</span>
-                  <strong className="text-emerald-700">99 / 100 (Zero ASCI flags)</strong>
-                </div>
-              </div>
-
-              <div className="text-2xs text-neutral-500">
-                <strong>Recommended Format:</strong> 30s Kitchen Recipe Reel demonstrating snack crunch and reading locked nutritional fact on pack.
-              </div>
-            </div>
-
-            <div
-              style={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: "20px", padding: "20px" }}
-              className="space-y-4 shadow-sm"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-400 to-indigo-500 flex items-center justify-center font-bold text-white text-sm shadow">
-                    AM
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-neutral-900">Anand Mahajan</h4>
-                    <span className="text-2xs text-neutral-500">Health & Fitness • Pune / Mumbai</span>
-                  </div>
-                </div>
-                <Badge variant="success">95% FIT</Badge>
-              </div>
-
-              <div className="space-y-1.5 text-xs text-neutral-600 bg-neutral-50 p-3 rounded-xl border border-neutral-100">
-                <div className="flex justify-between">
-                  <span>Language Dialect:</span>
-                  <strong className="text-neutral-900">Marathi & Hinglish</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span>Audience Match:</span>
-                  <strong className="text-neutral-900">Fitness Seekers (20-35)</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span>Brand Safety Score:</span>
-                  <strong className="text-emerald-700">96 / 100</strong>
-                </div>
-              </div>
-
-              <div className="text-2xs text-neutral-500">
-                <strong>Recommended Format:</strong> Gym bag snack check with lab benchmark citation (4x dietary fiber vs glucose biscuit).
-              </div>
-            </div>
-
-            <div
-              style={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: "20px", padding: "20px" }}
-              className="space-y-4 shadow-sm"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-500 flex items-center justify-center font-bold text-white text-sm shadow">
-                    KS
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-neutral-900">Kavitha Sundaram</h4>
-                    <span className="text-2xs text-neutral-500">Regional Culture & Tech • Chennai</span>
-                  </div>
-                </div>
-                <Badge variant="success">94% FIT</Badge>
-              </div>
-
-              <div className="space-y-1.5 text-xs text-neutral-600 bg-neutral-50 p-3 rounded-xl border border-neutral-100">
-                <div className="flex justify-between">
-                  <span>Language Dialect:</span>
-                  <strong className="text-neutral-900">Tamil (Chennai Urban)</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span>Audience Match:</span>
-                  <strong className="text-neutral-900">Working Professionals</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span>Brand Safety Score:</span>
-                  <strong className="text-emerald-700">97 / 100</strong>
-                </div>
-              </div>
-
-              <div className="text-2xs text-neutral-500">
-                <strong>Recommended Format:</strong> High-energy product unpacking focusing on regional language packaging details.
-              </div>
-            </div>
-
-          </div>
+            );
+          })()}
 
         </div>
       )}

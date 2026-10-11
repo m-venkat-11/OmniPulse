@@ -64,11 +64,11 @@ export const ClaimEvidenceGraph: React.FC<ClaimEvidenceGraphProps> = ({
       {
         id: "prod-main",
         label: productName.length > 24 ? productName.slice(0, 22) + "..." : productName,
-        subLabel: "Audited Product Entity",
+        subLabel: campaign?.category ? `${campaign.category}` : "Audited Product Entity",
         type: "product",
         color: "#3D5AFE",
         val: 26,
-        metadata: { category: "Packaged Foods & Nutrition" }
+        metadata: { category: campaign?.category || "Product Specification" }
       }
     ];
 

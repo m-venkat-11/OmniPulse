@@ -805,10 +805,31 @@ export async function analyzeAdEvidenceLiveAction(input: {
   tone?: string;
   productPhoto?: string;
   brandGuidelinesDoc?: string;
+  sarvamApiKey?: string;
 }) {
   const { detectClaimsAndBuildGraph } = await import('@/lib/ai/adapter');
   const result = await detectClaimsAndBuildGraph(input);
   return result;
 }
+
+export async function testSarvamApiKeyAction(apiKey: string) {
+  const { sarvamClient } = await import('@/lib/ai/sarvam');
+  return await sarvamClient.testConnection(apiKey);
+}
+
+export async function getDynamicCreatorsAction(input: {
+  brand: string;
+  product: string;
+  category: string;
+  language: string;
+  region: string;
+  audience: string;
+  talkingPoints?: string[];
+  prohibitedClaims?: string[];
+}) {
+  const { generateDynamicCreators } = await import('@/lib/ai/adapter');
+  return generateDynamicCreators(input);
+}
+
 
 
