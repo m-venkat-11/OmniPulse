@@ -9,14 +9,14 @@ import {
   Award, Layers, Trash2, Bell, MoreHorizontal, ArrowRight,
   RefreshCw, Check, XCircle, Camera, FileCheck2, Users,
   Sliders, Search, ExternalLink, HelpCircle, Eye, Copy,
-  CheckCheck, Share2
+  CheckCheck, Share2, Wand2, Key
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   getCampaigns, getDashboardStats, seedDemoCampaignAction,
   deleteCampaign, getClaimAtoms, getAssetVersionsForCampaign,
-  analyzeAdEvidenceLiveAction, createCampaign
+  analyzeAdEvidenceLiveAction, createCampaign, generateRealAdAction
 } from "@/app/actions";
 import { ClaimEvidenceGraph } from "@/components/graph/ClaimEvidenceGraph";
 import { matchDynamicCreators, CreatorProfile } from "@/lib/creators";
@@ -67,6 +67,16 @@ export default function DashboardOverviewPage() {
   const [isSavingLiveCampaign, setIsSavingLiveCampaign] = useState(false);
   const [copiedBrief, setCopiedBrief] = useState(false);
 
+  // Generate AI Ad state
+  const [isGeneratingAd, setIsGeneratingAd] = useState(false);
+  const [generatedAdMode, setGeneratedAdMode] = useState<'live' | 'fallback' | null>(null);
+  const [generatedAdKeyBenefits, setGeneratedAdKeyBenefits] = useState("");
+
+  // Sarvam API Key state (also stored in localStorage for persistence)
+  const [sarvamKey, setSarvamKey] = useState("");
+  const [showSarvamInput, setShowSarvamInput] = useState(false);
+  const [sarvamKeyStatus, setSarvamKeyStatus] = useState<'idle' | 'testing' | 'valid' | 'invalid'>('idle');
+
   const searchParams = useSearchParams();
 
   // Switch tab and sync with top navigation
@@ -82,6 +92,12 @@ export default function DashboardOverviewPage() {
   useEffect(() => {
     setMounted(true);
     loadData();
+
+    // Restore Sarvam key from localStorage
+    if (typeof window !== "undefined") {
+      const storedKey = localStorage.getItem("SARVAM_API_KEY") || "";
+      setSarvamKey(storedKey);
+    }
 
     // Listen to query params
     const tabParam = searchParams?.get("tab");
@@ -107,9 +123,7 @@ export default function DashboardOverviewPage() {
       ]);
       setCampaigns(campaignData as any[]);
       setStats(statsData);
-
-      // Initialize default realistic claims and creators for active preset
-      applyPresetScenario('millet');
+      // Do NOT pre-apply a preset — let results only show after real analysis
     } catch (err) {
       console.error("Failed to load dashboard:", err);
     } finally {
@@ -143,7 +157,10 @@ export default function DashboardOverviewPage() {
 
     setIsAnalyzingLive(true);
     try {
-      const storedSarvamKey = typeof window !== "undefined" ? localStorage.getItem("SARVAM_API_KEY") || undefined : undefined;
+      // Use state sarvamKey (from input) or fall back to localStorage
+      const activeSarvamKey = sarvamKey.trim() ||
+        (typeof window !== "undefined" ? localStorage.getItem("SARVAM_API_KEY") || undefined : undefined);
+
       const res = await analyzeAdEvidenceLiveAction({
         adCopy: liveAdCopy,
         brandName: liveBrand,
@@ -155,7 +172,7 @@ export default function DashboardOverviewPage() {
         tone: liveTone,
         productPhoto: productPhotoEvidence,
         brandGuidelinesDoc: brandGuidelinesDoc,
-        sarvamApiKey: storedSarvamKey,
+        sarvamApiKey: activeSarvamKey,
       });
       setLiveResult(res);
 
@@ -188,6 +205,52 @@ export default function DashboardOverviewPage() {
       setIsAnalyzingLive(false);
     }
   };
+
+  // Generate a real AI ad copy using Gemini then auto-fill the ad copy field
+  const handleGenerateRealAd = async () => {
+    if (!liveBrand.trim() || !liveProduct.trim()) {
+      alert("Please enter a Brand Name and Product Name first.");
+      return;
+    }
+    setIsGeneratingAd(true);
+    try {
+      const res = await generateRealAdAction({
+        brand: liveBrand,
+        product: liveProduct,
+        category: liveCategory,
+        language: liveLanguage,
+        region: liveRegion,
+        audience: liveAudience,
+        tone: liveTone,
+        keyBenefits: generatedAdKeyBenefits || undefined,
+        prohibitedClaims: brandGuidelinesDoc || undefined,
+      });
+      if (res && res.adCopy) {
+        setLiveAdCopy(res.adCopy);
+        setGeneratedAdMode(res.mode);
+      }
+    } catch (err: any) {
+      alert("Ad generation failed: " + err.message);
+    } finally {
+      setIsGeneratingAd(false);
+    }
+  };
+
+  // Save Sarvam key to localStorage for persistence
+  const handleSaveSarvamKey = () => {
+    if (typeof window !== "undefined") {
+      if (sarvamKey.trim()) {
+        localStorage.setItem("SARVAM_API_KEY", sarvamKey.trim());
+        setSarvamKeyStatus('valid');
+      } else {
+        localStorage.removeItem("SARVAM_API_KEY");
+        setSarvamKeyStatus('idle');
+      }
+      setShowSarvamInput(false);
+    }
+  };
+
+
 
   const handleSaveLiveAsCampaign = async () => {
     if (!liveResult) return;
@@ -271,9 +334,9 @@ export default function DashboardOverviewPage() {
         matchedCreators: creators,
         dualAiStatus: {
           geminiActive: true,
-          geminiModel: "gemini-3.8-flash",
-          sarvamActive: typeof window !== "undefined" && !!localStorage.getItem("SARVAM_API_KEY"),
-          orchestrationNote: "Gemini 3.8 Active • Ready for Live ASCI & Product Audit"
+          geminiModel: "gemini-2.0-flash",
+          sarvamActive: typeof window !== "undefined" && !!(localStorage.getItem("SARVAM_API_KEY") || sarvamKey),
+          orchestrationNote: "Preset Demo Mode • Click 'Verify Ad-Evidence' to run real Gemini AI audit"
         }
       });
     } else if (scenario === 'smartphone') {
@@ -323,9 +386,9 @@ export default function DashboardOverviewPage() {
         matchedCreators: creators,
         dualAiStatus: {
           geminiActive: true,
-          geminiModel: "gemini-3.8-flash",
-          sarvamActive: typeof window !== "undefined" && !!localStorage.getItem("SARVAM_API_KEY"),
-          orchestrationNote: "Gemini 3.8 Active • Ready for Live ASCI & Product Audit"
+          geminiModel: "gemini-2.0-flash",
+          sarvamActive: typeof window !== "undefined" && !!(localStorage.getItem("SARVAM_API_KEY") || sarvamKey),
+          orchestrationNote: "Preset Demo Mode • Click 'Verify Ad-Evidence' to run real Gemini AI audit"
         }
       });
     } else if (scenario === 'juice') {
@@ -375,9 +438,9 @@ export default function DashboardOverviewPage() {
         matchedCreators: creators,
         dualAiStatus: {
           geminiActive: true,
-          geminiModel: "gemini-3.8-flash",
-          sarvamActive: typeof window !== "undefined" && !!localStorage.getItem("SARVAM_API_KEY"),
-          orchestrationNote: "Gemini 3.8 Active • Ready for Live ASCI & Product Audit"
+          geminiModel: "gemini-2.0-flash",
+          sarvamActive: typeof window !== "undefined" && !!(localStorage.getItem("SARVAM_API_KEY") || sarvamKey),
+          orchestrationNote: "Preset Demo Mode • Click 'Verify Ad-Evidence' to run real Gemini AI audit"
         }
       });
     }
@@ -800,6 +863,68 @@ export default function DashboardOverviewPage() {
 
             </div>
 
+            {/* ── AI AD GENERATOR ── */}
+            <div className="space-y-3 pt-2 border-t border-neutral-100">
+              <div className="flex items-center justify-between">
+                <label className="block text-2xs font-bold uppercase tracking-wider text-neutral-600 flex items-center gap-1.5">
+                  <Wand2 size={13} className="text-purple-600" />
+                  Generate Real AI Ad Copy with Gemini
+                </label>
+                <div className="flex items-center gap-2">
+                  {generatedAdMode === 'live' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-2xs font-bold border border-purple-200">
+                      <Sparkles size={10} /> Gemini Live
+                    </span>
+                  )}
+                  {generatedAdMode === 'fallback' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-2xs font-bold border border-amber-200">
+                      ⚡ Smart Template
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={generatedAdKeyBenefits}
+                  onChange={e => setGeneratedAdKeyBenefits(e.target.value)}
+                  placeholder="Key benefits or differentiators (optional — e.g. '4x fiber, 0g sugar, NABL cert')..."
+                  className="flex-1 h-9 px-3 rounded-xl border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-purple-400"
+                />
+                <button
+                  type="button"
+                  onClick={handleGenerateRealAd}
+                  disabled={isGeneratingAd}
+                  style={{
+                    backgroundColor: '#7C3AED',
+                    color: '#FFFFFF',
+                    borderRadius: '12px',
+                    padding: '0 16px',
+                    height: '36px',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    border: 'none',
+                    cursor: isGeneratingAd ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    opacity: isGeneratingAd ? 0.7 : 1,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {isGeneratingAd ? (
+                    <><RefreshCw size={13} className="animate-spin" /> Generating...</>
+                  ) : (
+                    <><Wand2 size={13} /> Generate AI Ad</>
+                  )}
+                </button>
+              </div>
+              <p className="text-3xs text-neutral-400">
+                Gemini writes a real, ASCI-compliant ad copy based on your product context → fills the verify field below automatically.
+              </p>
+            </div>
+
             {/* Ad Copy Textarea */}
             <div className="space-y-1.5 pt-2 border-t border-neutral-100">
               <div className="flex items-center justify-between">
@@ -812,19 +937,51 @@ export default function DashboardOverviewPage() {
                 </span>
               </div>
               <textarea
-                rows={3}
+                rows={4}
                 value={liveAdCopy}
                 onChange={e => setLiveAdCopy(e.target.value)}
-                placeholder="Enter campaign headline, voiceover copy, or promotional script..."
+                placeholder="Enter or generate campaign headline, voiceover copy, or promotional script..."
                 className="w-full p-3 rounded-xl border border-neutral-200 text-xs font-medium leading-relaxed focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
             </div>
 
             {/* Verification Button Bar */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-neutral-100">
-              <div className="flex items-center gap-2 text-xs text-neutral-500">
-                <Sparkles size={14} className="text-emerald-500" />
-                <span>Runs 3-pass extraction, packaging audit, and regional transcreation</span>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 text-xs text-neutral-500">
+                  <Sparkles size={14} className="text-emerald-500" />
+                  <span>Runs 3-pass: claim extraction → packaging audit → regional transcreation</span>
+                </div>
+
+                {/* Sarvam Key Quick Toggle */}
+                <div className="flex items-center gap-1.5">
+                  {showSarvamInput ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="password"
+                        value={sarvamKey}
+                        onChange={e => setSarvamKey(e.target.value)}
+                        placeholder="sk_... Sarvam API Key"
+                        className="h-7 px-2 rounded-lg border border-neutral-300 text-2xs w-44 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        onKeyDown={e => e.key === 'Enter' && handleSaveSarvamKey()}
+                      />
+                      <button onClick={handleSaveSarvamKey} className="h-7 px-2 rounded-lg bg-blue-600 text-white text-2xs font-bold">Save</button>
+                      <button onClick={() => setShowSarvamInput(false)} className="h-7 px-2 rounded-lg border border-neutral-300 text-neutral-600 text-2xs">✕</button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowSarvamInput(true)}
+                      className="flex items-center gap-1 h-7 px-2.5 rounded-lg border border-neutral-300 text-2xs font-semibold text-neutral-600 hover:bg-neutral-50"
+                    >
+                      <Key size={11} />
+                      {sarvamKey ? (
+                        <span className="text-blue-700">Sarvam ✓ Active</span>
+                      ) : (
+                        <span>+ Sarvam Key</span>
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="flex items-center gap-3">
@@ -842,6 +999,8 @@ export default function DashboardOverviewPage() {
             </div>
 
           </div>
+
+
 
           {/* ── LIVE GEMINI VERIFICATION RESULTS DISPLAY ── */}
           {liveResult && (
@@ -913,6 +1072,43 @@ export default function DashboardOverviewPage() {
                 </div>
               </div>
 
+              {/* Dual AI Status Banner */}
+              {liveResult.dualAiStatus && (
+                <div
+                  style={{
+                    background: liveResult.dualAiStatus.sarvamActive
+                      ? 'linear-gradient(135deg, #1E1B4B 0%, #312E81 50%, #1D4ED8 100%)'
+                      : 'linear-gradient(135deg, #064E3B 0%, #065F46 100%)',
+                    borderRadius: '16px',
+                    padding: '12px 20px',
+                  }}
+                  className="flex flex-wrap items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/20 text-white text-2xs font-bold">
+                        <Sparkles size={10} /> Gemini AI
+                      </span>
+                      {liveResult.dualAiStatus.sarvamActive && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/20 text-white text-2xs font-bold">
+                          🎙 Sarvam mayura:v1
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-white/80 text-2xs font-medium">
+                      {liveResult.dualAiStatus.orchestrationNote}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white/60 text-3xs">
+                      Model: {liveResult.dualAiStatus.geminiModel}
+                      {liveResult.dualAiStatus.sarvamModel ? ` + ${liveResult.dualAiStatus.sarvamModel}` : ''}
+                    </span>
+                    <span className={`w-2 h-2 rounded-full ${liveResult.dualAiStatus.geminiActive ? 'bg-emerald-400' : 'bg-red-400'} animate-pulse`} />
+                  </div>
+                </div>
+              )}
+
               {/* Packaging & Guidelines Cross-Audit Audit Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div
@@ -939,6 +1135,7 @@ export default function DashboardOverviewPage() {
                   </p>
                 </div>
               </div>
+
 
               {/* Extracted Claim Atoms Cards */}
               <div

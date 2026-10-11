@@ -84,24 +84,34 @@ export interface AdaptationRequest {
 
 // ── Gemini API Call ──
 
-async function callGemini(prompt: string): Promise<string> {
+async function callGemini(prompt: string, jsonMode: boolean = true): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY not configured');
   }
 
+  // Valid Gemini models in priority order (gemini-2.0-flash is best for free tier)
   const candidateModels = [
-    'gemini-3.8-flash',
     'gemini-2.0-flash',
     'gemini-1.5-flash',
-    'gemini-2.5-flash',
+    'gemini-2.0-flash-exp',
+    'gemini-1.5-flash-8b',
   ];
 
   let lastError: any = null;
   for (const model of candidateModels) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 40000);
+      const timeoutId = setTimeout(() => controller.abort(), 45000);
+
+      const generationConfig: any = {
+        temperature: 0.4,
+        maxOutputTokens: 4096,
+      };
+      // Only add JSON mode if requested (some prompts like ad generation are plain text)
+      if (jsonMode) {
+        generationConfig.responseMimeType = 'application/json';
+      }
 
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -111,11 +121,7 @@ async function callGemini(prompt: string): Promise<string> {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.4,
-              maxOutputTokens: 4096,
-              responseMimeType: 'application/json',
-            },
+            generationConfig,
           }),
         }
       );
@@ -124,18 +130,77 @@ async function callGemini(prompt: string): Promise<string> {
       if (response.ok) {
         const data = await response.json();
         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) return text;
+        if (text) {
+          console.log(`[AI] Gemini ${model} responded successfully`);
+          return text;
+        }
       } else {
-        const err = await response.text();
-        console.warn(`[AI] Gemini ${model} failed (${response.status}):`, err.slice(0, 160));
+        const errBody = await response.text();
+        console.warn(`[AI] Gemini ${model} failed (${response.status}):`, errBody.slice(0, 200));
+        lastError = new Error(`Gemini ${model}: HTTP ${response.status}`);
       }
     } catch (err: any) {
       lastError = err;
-      console.warn(`[AI] Error calling ${model}:`, err.message);
+      console.warn(`[AI] Error calling Gemini ${model}:`, err.message);
     }
   }
 
-  throw new Error(`All candidate Gemini models failed. Last error: ${lastError?.message || 'unknown'}`);
+  throw new Error(`All Gemini models failed. Last: ${lastError?.message || 'unknown'}`);
+}
+
+// ── Generate Real AI-Powered Ad Copy (Plain Text, not JSON) ──
+
+export async function generateRealAd(params: {
+  brand: string;
+  product: string;
+  category: string;
+  language: string;
+  region: string;
+  audience: string;
+  tone: string;
+  keyBenefits?: string;
+  prohibitedClaims?: string;
+}): Promise<{ adCopy: string; mode: 'live' | 'fallback' }> {
+  const { brand, product, category, language, region, audience, tone, keyBenefits, prohibitedClaims } = params;
+  const hasApiKey = !!process.env.GEMINI_API_KEY;
+
+  if (hasApiKey) {
+    try {
+      const prompt = `You are an expert Indian regional advertising copywriter.
+
+Write a compelling, ASCI-compliant English ad copy for:
+Brand: ${brand}
+Product: ${product}
+Category: ${category}
+Target Region: ${region}
+Target Audience: ${audience}
+Tone: ${tone}
+${keyBenefits ? `Key Benefits to Highlight: ${keyBenefits}` : ''}
+${prohibitedClaims ? `STRICTLY AVOID: ${prohibitedClaims}` : 'STRICTLY AVOID: absolute cure claims, unverified medical guarantees, or unsupported #1 superlatives'}
+
+Requirements:
+1. Write ONE compelling 2-3 sentence ad copy headline + body (in English)
+2. Include at least 1 specific, verifiable product claim (with plausible supporting data like cert numbers, nutritional values, or specs)
+3. Include a clear, action-oriented Call To Action
+4. Make it sound authentic and relatable for ${region} consumers
+5. Avoid unverifiable medical cure claims — keep it compliant
+6. Keep the total under 120 words
+
+Return ONLY the ad copy text. No JSON, no explanations, no formatting markers.`;
+
+      const raw = await callGemini(prompt, false); // plain text mode
+      const adCopy = raw.trim();
+      if (adCopy.length > 20) {
+        return { adCopy, mode: 'live' };
+      }
+    } catch (err: any) {
+      console.warn('[AI] generateRealAd Gemini call failed:', err.message);
+    }
+  }
+
+  // Fallback: Generate a realistic template-based ad
+  const fallbackCopy = `Introducing ${brand} ${product} — crafted for the health-conscious families of ${region}. With certified premium ingredients and authentic regional quality, experience the difference that trusted nutrition makes. Try ${product} today and taste the ${brand} promise. #${brand.replace(/\s+/g, '')} #${product.replace(/\s+/g, '')} #QualityYouCanTrust`;
+  return { adCopy: fallbackCopy, mode: 'fallback' };
 }
 
 // ── Extract JSON from response (handles markdown fences and thoughts) ──
@@ -1021,12 +1086,12 @@ Return strictly valid JSON with this exact schema:
     matchedCreators,
     dualAiStatus: {
       geminiActive: true,
-      geminiModel: 'gemini-3.8-flash',
+      geminiModel: 'gemini-2.0-flash',
       sarvamActive: !!activeSarvamKey,
       sarvamModel: activeSarvamKey ? 'mayura:v1' : undefined,
       orchestrationNote: activeSarvamKey
-        ? 'Dual AI Engine active: Gemini 3.8 + Sarvam AI'
-        : 'Gemini 3.8 Flash active. Add Sarvam AI API Key in header to enable dual Indic transcreation.'
+        ? 'Dual AI Engine active: Gemini 2.0 Flash + Sarvam AI mayura:v1'
+        : 'Gemini 2.0 Flash active. Add Sarvam AI API Key to enable dual Indic transcreation.'
     }
   };
 }

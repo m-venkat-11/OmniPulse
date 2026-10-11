@@ -831,5 +831,20 @@ export async function getDynamicCreatorsAction(input: {
   return generateDynamicCreators(input);
 }
 
+export async function generateRealAdAction(params: {
+  brand: string;
+  product: string;
+  category: string;
+  language: string;
+  region: string;
+  audience: string;
+  tone: string;
+  keyBenefits?: string;
+  prohibitedClaims?: string;
+}) {
+  const { generateRealAd } = await import('@/lib/ai/adapter');
+  return generateRealAd(params);
+}
+
 
 
