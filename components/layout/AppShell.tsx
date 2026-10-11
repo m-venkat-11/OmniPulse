@@ -30,12 +30,12 @@ export function AppShell({ children }: AppShellProps) {
           
           {/* Brand Logo: Clean White Logo Matching Reference Image with Braco Tag */}
           <Link href="/dashboard" className="flex items-center gap-2.5 group">
-            <span className="font-sans font-extrabold text-white text-2xl tracking-tight group-hover:opacity-90 transition-opacity">
-              quixel
+            <span className="font-sans font-extrabold text-white text-2xl tracking-tight group-hover:opacity-90 transition-opacity flex items-center gap-1.5">
+              <span>OmniPulse</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-[#00FF87] shadow-[0_0_8px_#00FF87] animate-pulse"></span>
             </span>
-            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-            <span className="text-3xs font-mono text-neutral-400 uppercase tracking-widest hidden sm:inline-block">
-              Braco OmniPulse
+            <span className="text-3xs font-mono text-neutral-400 uppercase tracking-widest hidden sm:inline-block bg-white/5 px-2 py-0.5 rounded-md border border-white/10">
+              Regional AI
             </span>
           </Link>
 
@@ -64,7 +64,7 @@ export function AppShell({ children }: AppShellProps) {
               }}
               className="px-3.5 py-1.5 rounded-full text-xs font-medium hover:text-white hover:bg-white/5 transition-all whitespace-nowrap"
             >
-              Claim Graph
+              ⚡ Claim Graph
             </Link>
 
             <Link
@@ -75,7 +75,7 @@ export function AppShell({ children }: AppShellProps) {
               }}
               className="px-3.5 py-1.5 rounded-full text-xs font-medium hover:text-white hover:bg-white/5 transition-all whitespace-nowrap"
             >
-              New Campaign
+              ➕ New Campaign
             </Link>
 
             <Link
@@ -96,11 +96,11 @@ export function AppShell({ children }: AppShellProps) {
             className="flex items-center gap-2.5 pl-2 pr-3.5 py-1.5 rounded-full border border-white/10 hover:border-white/20 transition-all cursor-pointer"
           >
             <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-500 flex items-center justify-center text-[#0C0E14] font-bold text-xs shadow shrink-0">
-              A
+              O
             </div>
             <div className="text-left hidden sm:block">
-              <span className="text-xs font-bold text-white block leading-tight">Hi, Ajeng!</span>
-              <span className="text-3xs text-neutral-400 block leading-tight truncate max-w-[130px]">ajengz@gmail.com</span>
+              <span className="text-xs font-bold text-white block leading-tight">Hi, Campaign Lead!</span>
+              <span className="text-3xs text-neutral-400 block leading-tight truncate max-w-[130px]">lead@omnipulse.ai</span>
             </div>
             <ChevronDown size={13} className="text-neutral-400 shrink-0" />
           </div>

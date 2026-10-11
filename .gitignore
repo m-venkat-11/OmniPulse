@@ -47,3 +47,10 @@ next-env.d.ts
 
 # OS
 Thumbs.db
+
+.vercel
+.env*
+
+scratch*
+auth*
+local.db*

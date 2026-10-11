@@ -731,3 +731,22 @@ export async function deleteCampaign(campaignId: string) {
   return true;
 }
 
+// ═══════════════════════════════════════════════════════
+// LIVE AD-EVIDENCE GRAPH SERVER ACTION
+// ═══════════════════════════════════════════════════════
+
+export async function analyzeAdEvidenceLiveAction(input: {
+  adCopy: string;
+  brandName?: string;
+  productName?: string;
+}) {
+  const { detectClaimsAndBuildGraph } = await import('@/lib/ai/adapter');
+  const result = await detectClaimsAndBuildGraph(
+    input.adCopy,
+    input.brandName || 'Rasa Foods',
+    input.productName || 'Festive Millet Bites'
+  );
+  return result;
+}
+
+

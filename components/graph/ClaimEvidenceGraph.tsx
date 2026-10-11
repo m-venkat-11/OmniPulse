@@ -90,18 +90,21 @@ export const ClaimEvidenceGraph: React.FC<ClaimEvidenceGraphProps> = ({
     ];
 
     activeClaims.forEach((cl: any, idx: number) => {
-      const isContradicted = cl.evidence_status === "contradicted" || cl.evidence_status === "unsupported";
-      const claimColor = isContradicted ? "#FF2FA3" : cl.evidence_status === "supported" ? "#00FF87" : "#FF8A1E";
+      const text = cl.claim_text || cl.claimText || "Claim Atom";
+      const status = cl.evidence_status || cl.evidenceStatus || "supported";
+      const qualifications = cl.qualifications || cl.evidenceCitation || "";
+      const isContradicted = status === "contradicted" || status === "unsupported";
+      const claimColor = isContradicted ? "#FF2FA3" : status === "supported" ? "#00FF87" : "#FF8A1E";
 
       nodesList.push({
         id: cl.id || `cl-${idx}`,
-        label: cl.claim_text?.length > 24 ? cl.claim_text.slice(0, 22) + "..." : cl.claim_text,
-        subLabel: `Claim Atom • ${cl.evidence_status?.toUpperCase()}`,
+        label: text.length > 24 ? text.slice(0, 22) + "..." : text,
+        subLabel: `Claim Atom • ${status.toUpperCase()}`,
         type: isContradicted ? "conflict" : "claim",
         color: claimColor,
-        status: cl.evidence_status,
+        status: status,
         val: 22,
-        metadata: { ...cl }
+        metadata: { ...cl, claim_text: text, evidence_status: status, qualifications }
       });
 
       edgesList.push({
@@ -113,16 +116,16 @@ export const ClaimEvidenceGraph: React.FC<ClaimEvidenceGraphProps> = ({
       });
 
       // Evidence node for this claim
-      if (cl.qualifications || cl.evidence_status === "supported") {
+      if (qualifications || status === "supported") {
         const evId = `ev-${cl.id || idx}`;
         nodesList.push({
           id: evId,
-          label: cl.qualifications?.length > 22 ? cl.qualifications.slice(0, 20) + "..." : (cl.qualifications || "Evidence Document"),
+          label: qualifications.length > 22 ? qualifications.slice(0, 20) + "..." : (qualifications || "Evidence Document"),
           subLabel: isContradicted ? "Violates Rule / Code" : "NABL Lab / Scientific Spec",
           type: isContradicted ? "conflict" : "lab",
           color: isContradicted ? "#FF2FA3" : "#00E5FF",
           val: 16,
-          metadata: { evidence: cl.qualifications, status: cl.evidence_status }
+          metadata: { evidence: qualifications, status: status }
         });
 
         edgesList.push({
@@ -142,23 +145,26 @@ export const ClaimEvidenceGraph: React.FC<ClaimEvidenceGraphProps> = ({
     ];
 
     activeVariants.forEach((v: any, vIdx: number) => {
-      const isApproved = v.status === "approved";
+      const lang = v.target_language || v.targetLanguage || v.language || "Regional";
+      const dialect = v.dialect || "Native";
+      const status = v.status || "approved";
+      const isApproved = status === "approved";
       const varId = v.id || `var-${vIdx}`;
       nodesList.push({
         id: varId,
-        label: `${v.target_language} Ad (${v.dialect || "Native"})`,
-        subLabel: `v${v.version_number || 1} • ${v.status?.toUpperCase()}`,
+        label: `${lang} Ad (${dialect})`,
+        subLabel: `v${v.version_number || v.versionNumber || 1} • ${status.toUpperCase()}`,
         type: "ad",
         color: isApproved ? "#00FF87" : "#FF8A1E",
         val: 20,
-        metadata: { ...v }
+        metadata: { ...v, target_language: lang, dialect, status }
       });
 
       edgesList.push({
         id: `edge-cl-var-${vIdx}`,
         source: activeClaims[0]?.id || "cl-0",
         target: varId,
-        label: `Adapted for ${v.target_language}`,
+        label: `Adapted for ${lang}`,
         status: isApproved ? "verified" : "normal"
       });
     });

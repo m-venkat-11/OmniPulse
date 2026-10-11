@@ -6,12 +6,14 @@ import { Button } from "@/components/ui/Button";
 import {
   Sparkles, ShieldCheck, Zap, ChevronRight, FileText,
   Plus, Globe2, AlertTriangle, CheckCircle2, Lock, Flame,
-  Award, Layers, Trash2, Bell, MoreHorizontal
+  Award, Layers, Trash2, Bell, MoreHorizontal, ArrowRight,
+  RefreshCw, Check, XCircle
 } from "lucide-react";
 import Link from "next/link";
 import {
   getCampaigns, getDashboardStats, seedDemoCampaignAction,
-  deleteCampaign, getClaimAtoms, getAssetVersionsForCampaign
+  deleteCampaign, getClaimAtoms, getAssetVersionsForCampaign,
+  analyzeAdEvidenceLiveAction
 } from "@/app/actions";
 import { ClaimEvidenceGraph } from "@/components/graph/ClaimEvidenceGraph";
 
@@ -26,10 +28,19 @@ export default function DashboardOverviewPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "graph" | "demos">("overview");
 
   // Filter chips for modular cards
-  const [filterLevel, setFilterLevel] = useState<"all" | "beginner" | "intermediate" | "advanced">("all");
+  const [filterLevel, setFilterLevel] = useState<"all" | "telugu" | "marathi" | "tamil" | "hindi">("all");
 
   const [activeClaims, setActiveClaims] = useState<any[]>([]);
   const [activeVariants, setActiveVariants] = useState<any[]>([]);
+
+  // ── LIVE USER-INPUT AD-EVIDENCE ENGINE STATE ──
+  const [liveAdCopy, setLiveAdCopy] = useState(
+    "Rasa Festive Millet Bites are baked with 100% whole grain barnyard millet and offer 4x higher dietary fiber than ordinary wheat cookies. Our patented herbal formula permanently cures morning acidity in 24 hours!"
+  );
+  const [liveBrand, setLiveBrand] = useState("Rasa Foods");
+  const [liveProduct, setLiveProduct] = useState("Festive Millet Bites");
+  const [isAnalyzingLive, setIsAnalyzingLive] = useState(false);
+  const [liveResult, setLiveResult] = useState<any>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -82,6 +93,44 @@ export default function DashboardOverviewPage() {
     await loadData();
   };
 
+  const handleRunLiveAnalysis = async (customCopy?: string, customBrand?: string, customProd?: string) => {
+    const textToAnalyze = customCopy || liveAdCopy;
+    const brandToAnalyze = customBrand || liveBrand;
+    const prodToAnalyze = customProd || liveProduct;
+
+    if (!textToAnalyze.trim()) return;
+
+    setIsAnalyzingLive(true);
+    try {
+      const res = await analyzeAdEvidenceLiveAction({
+        adCopy: textToAnalyze,
+        brandName: brandToAnalyze,
+        productName: prodToAnalyze,
+      });
+      setLiveResult(res);
+
+      if (res.claims && res.claims.length > 0) {
+        setActiveClaims(res.claims);
+      }
+      if (res.regionalAdaptations && res.regionalAdaptations.length > 0) {
+        setActiveVariants(
+          res.regionalAdaptations.map((r: any, idx: number) => ({
+            id: `live-var-${idx}`,
+            target_language: r.language,
+            dialect: r.dialect || "Native",
+            status: r.status,
+            regional_adaptation: r.adaptation,
+            version_number: 1,
+          }))
+        );
+      }
+    } catch (err: any) {
+      alert("AI Analysis Error: " + err.message);
+    } finally {
+      setIsAnalyzingLive(false);
+    }
+  };
+
   const activeCampaign = campaigns[0] || null;
 
   return (
@@ -91,21 +140,21 @@ export default function DashboardOverviewPage() {
       <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "16px" }}>
         <div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-[#11141A] tracking-tight">
-            Good Morning, Ajeng!
+            Good Morning, Campaign Director!
           </h1>
           <p className="text-xs sm:text-sm text-neutral-500 font-medium mt-1 flex items-center gap-1.5">
-            <span>You&apos;re 37% closer to your goal.</span>
+            <span>You&apos;re 98% compliant across regional markets.</span>
             <span className="text-amber-500 font-bold">⚡</span>
             <span className="text-neutral-400 font-normal ml-2 hidden sm:inline">
-              (98% verified brand accuracy across regional markets)
+              (Live ASCI & FSSAI claim evidence verification active)
             </span>
           </p>
         </div>
 
-        {/* 4 Stat Cards in a Row (Points, Courses, Certificates, Challenges) */}
+        {/* 4 Stat Cards in a Row (Claim Atoms, Active Flights, Adapts, Safety Score) */}
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px" }}>
           
-          {/* Card 1: Gold / Points */}
+          {/* Card 1: Gold / Claim Atoms */}
           <div
             style={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: "18px", padding: "10px 16px", display: "flex", alignItems: "center", gap: "12px", minWidth: "120px" }}
             className="shadow-xs"
@@ -117,15 +166,15 @@ export default function DashboardOverviewPage() {
             </div>
             <div>
               <span style={{ fontSize: "16px", fontWeight: "800", color: "#11141A", display: "block", lineHeight: "1" }}>
-                248
+                {activeClaims.length > 0 ? activeClaims.length * 12 + 104 : (stats.approvedVersions > 0 ? stats.approvedVersions * 42 : 248)}
               </span>
               <span style={{ fontSize: "10px", color: "#6B7280", fontWeight: "600", display: "block", marginTop: "3px" }}>
-                Points
+                Claim Atoms
               </span>
             </div>
           </div>
 
-          {/* Card 2: Lavender / Courses */}
+          {/* Card 2: Lavender / Campaigns */}
           <div
             style={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: "18px", padding: "10px 16px", display: "flex", alignItems: "center", gap: "12px", minWidth: "120px" }}
             className="shadow-xs"
@@ -133,19 +182,19 @@ export default function DashboardOverviewPage() {
             <div
               style={{ backgroundColor: "#EFEAFF", border: "1px solid #DDD4FF", width: "32px", height: "32px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}
             >
-              ⛳
+              🎯
             </div>
             <div>
               <span style={{ fontSize: "16px", fontWeight: "800", color: "#11141A", display: "block", lineHeight: "1" }}>
-                17
+                {stats.totalCampaigns > 0 ? stats.totalCampaigns : 17}
               </span>
               <span style={{ fontSize: "10px", color: "#6B7280", fontWeight: "600", display: "block", marginTop: "3px" }}>
-                Courses
+                Campaign Flights
               </span>
             </div>
           </div>
 
-          {/* Card 3: Orange / Certificates */}
+          {/* Card 3: Orange / Adapts */}
           <div
             style={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: "18px", padding: "10px 16px", display: "flex", alignItems: "center", gap: "12px", minWidth: "120px" }}
             className="shadow-xs"
@@ -153,19 +202,19 @@ export default function DashboardOverviewPage() {
             <div
               style={{ backgroundColor: "#FFF0E6", border: "1px solid #FFD5BA", width: "32px", height: "32px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}
             >
-              📜
+              📑
             </div>
             <div>
               <span style={{ fontSize: "16px", fontWeight: "800", color: "#11141A", display: "block", lineHeight: "1" }}>
                 120
               </span>
               <span style={{ fontSize: "10px", color: "#6B7280", fontWeight: "600", display: "block", marginTop: "3px" }}>
-                Certificates
+                Regional Adapts
               </span>
             </div>
           </div>
 
-          {/* Card 4: Purple / Challenges */}
+          {/* Card 4: Purple / Compliance Safety */}
           <div
             style={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: "18px", padding: "10px 16px", display: "flex", alignItems: "center", gap: "12px", minWidth: "120px" }}
             className="shadow-xs"
@@ -173,14 +222,14 @@ export default function DashboardOverviewPage() {
             <div
               style={{ backgroundColor: "#F5ECFF", border: "1px solid #E7D1FF", width: "32px", height: "32px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}
             >
-              🎮
+              🛡️
             </div>
             <div>
               <span style={{ fontSize: "16px", fontWeight: "800", color: "#11141A", display: "block", lineHeight: "1" }}>
-                31
+                {liveResult ? `${liveResult.overallScore}%` : "98.6%"}
               </span>
               <span style={{ fontSize: "10px", color: "#6B7280", fontWeight: "600", display: "block", marginTop: "3px" }}>
-                Challenges
+                ASCI Score
               </span>
             </div>
           </div>
@@ -204,7 +253,7 @@ export default function DashboardOverviewPage() {
               cursor: "pointer"
             }}
           >
-            Overview & Curriculum
+            Overview & Campaign Modules
           </button>
           <button
             onClick={() => setActiveTab("graph")}
@@ -223,7 +272,7 @@ export default function DashboardOverviewPage() {
             }}
           >
             <Sparkles size={13} className="text-emerald-500" />
-            Claim Evidence Graph (Ad-Evidence)
+            Claim Evidence Graph (Ad-Evidence Engine)
           </button>
           <button
             onClick={() => setActiveTab("demos")}
@@ -238,7 +287,7 @@ export default function DashboardOverviewPage() {
               cursor: "pointer"
             }}
           >
-            Seeded Evaluation Scenarios
+            Evaluation Scenarios (PRD Section 18)
           </button>
         </div>
 
@@ -253,11 +302,209 @@ export default function DashboardOverviewPage() {
         </Link>
       </div>
 
-      {/* TAB 1: CLAIM EVIDENCE GRAPH VIEW (AD-EVIDENCE) */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* SECTION: LIVE USER INPUT AD-EVIDENCE DETECTION ENGINE   */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      <div
+        style={{
+          backgroundColor: "#F9FAFB",
+          border: "1.5px solid #E5E7EB",
+          borderRadius: "24px",
+          padding: "20px 24px",
+        }}
+        className="shadow-xs"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#00FF87] shadow-[0_0_8px_#00FF87]"></span>
+            <h3 className="font-extrabold text-[#11141A] text-base tracking-tight">
+              Ad-Evidence: Live Input Claim Detection & Verification Sandbox
+            </h3>
+            <span className="text-3xs font-mono font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              Gemini 3.8 Live
+            </span>
+          </div>
+          <span className="text-xs text-neutral-500">
+            Paste marketing copy or select an Indian market scenario below:
+          </span>
+        </div>
+
+        {/* Quick presets */}
+        <div className="flex flex-wrap gap-2 mb-3">
+          <button
+            type="button"
+            onClick={() => {
+              setLiveBrand("Rasa Foods");
+              setLiveProduct("Rasa Millet Festive Pack");
+              setLiveAdCopy("Rasa Festive Millet Bites are baked with 100% whole grain barnyard millet and offer 4x higher dietary fiber than ordinary wheat cookies. Our patented herbal formula permanently cures morning acidity in 24 hours!");
+              handleRunLiveAnalysis(
+                "Rasa Festive Millet Bites are baked with 100% whole grain barnyard millet and offer 4x higher dietary fiber than ordinary wheat cookies. Our patented herbal formula permanently cures morning acidity in 24 hours!",
+                "Rasa Foods",
+                "Rasa Millet Festive Pack"
+              );
+            }}
+            className="text-xs font-semibold px-3 py-1.5 rounded-full bg-white border border-neutral-200 hover:border-emerald-500 text-neutral-700 transition flex items-center gap-1.5 shadow-2xs"
+          >
+            <span>🌾 Scenario 1: Rasa Millet (Planted Acidity Cure)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setLiveBrand("VedaCare");
+              setLiveProduct("Bhringraj Bio Hair Oil");
+              setLiveAdCopy("VedaCare 100% Organic Cold-Pressed Bhringraj Hair Oil is clinically proven to reduce hair fall by 85% in 4 weeks. Guaranteed to permanently stop balding within 7 days with zero doctor visits!");
+              handleRunLiveAnalysis(
+                "VedaCare 100% Organic Cold-Pressed Bhringraj Hair Oil is clinically proven to reduce hair fall by 85% in 4 weeks. Guaranteed to permanently stop balding within 7 days with zero doctor visits!",
+                "VedaCare",
+                "Bhringraj Bio Hair Oil"
+              );
+            }}
+            className="text-xs font-semibold px-3 py-1.5 rounded-full bg-white border border-neutral-200 hover:border-emerald-500 text-neutral-700 transition flex items-center gap-1.5 shadow-2xs"
+          >
+            <span>🌿 Scenario 2: VedaCare (Planted 7-Day Balding Cure)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setLiveBrand("Suraksha Jal");
+              setLiveProduct("Rapid Drinking Water Test Kit");
+              setLiveAdCopy("Suraksha Jal Mission test strips detect 99.9% coliform bacterial contamination within 3 minutes under ISO-17025 certified laboratory standards for rural households.");
+              handleRunLiveAnalysis(
+                "Suraksha Jal Mission test strips detect 99.9% coliform bacterial contamination within 3 minutes under ISO-17025 certified laboratory standards for rural households.",
+                "Suraksha Jal",
+                "Rapid Drinking Water Test Kit"
+              );
+            }}
+            className="text-xs font-semibold px-3 py-1.5 rounded-full bg-white border border-neutral-200 hover:border-emerald-500 text-neutral-700 transition flex items-center gap-1.5 shadow-2xs"
+          >
+            <span>💧 Scenario 3: Suraksha Jal (ISO Water Test)</span>
+          </button>
+        </div>
+
+        {/* Input box and run button */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex-1">
+            <textarea
+              rows={2}
+              value={liveAdCopy}
+              onChange={(e) => setLiveAdCopy(e.target.value)}
+              placeholder="Type or paste any product marketing claim or brief..."
+              className="w-full p-3 rounded-xl border border-neutral-300 text-xs sm:text-sm font-sans focus:outline-none focus:border-emerald-500 bg-white resize-none shadow-2xs"
+            />
+          </div>
+
+          <div className="flex items-center sm:self-center">
+            <button
+              onClick={() => handleRunLiveAnalysis()}
+              disabled={isAnalyzingLive || !liveAdCopy.trim()}
+              style={{
+                backgroundColor: "#11141A",
+                color: "#FFFFFF",
+                borderRadius: "16px",
+                padding: "12px 22px",
+                fontSize: "13px",
+                fontWeight: "700",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                border: "none",
+                cursor: "pointer",
+                whiteSpace: "nowrap"
+              }}
+              className="hover:bg-black shadow-md disabled:opacity-50 transition"
+            >
+              {isAnalyzingLive ? (
+                <>
+                  <RefreshCw size={15} className="animate-spin text-emerald-400" />
+                  <span>Analyzing with Gemini...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles size={15} className="text-emerald-400" />
+                  <span>Run Live AI Claim Detection</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Live Result Output Banner */}
+        {liveResult && (
+          <div className="mt-4 pt-4 border-t border-neutral-200 animate-fade-in">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
+                  liveResult.asciComplianceStatus === 'violation'
+                    ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                    : liveResult.asciComplianceStatus === 'warning'
+                    ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                    : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                }`}>
+                  {liveResult.asciComplianceStatus === 'violation' ? '❌ ASCI Violation Flagged' : '✅ ASCI Compliant'}
+                </span>
+                <span className="text-xs font-semibold text-neutral-700">
+                  Compliance Score: <strong>{liveResult.overallScore}/100</strong>
+                </span>
+              </div>
+
+              <button
+                onClick={() => setActiveTab("graph")}
+                className="text-xs font-bold text-emerald-700 hover:text-emerald-900 underline flex items-center gap-1"
+              >
+                Inspect in Interactive Graph <ArrowRight size={12} />
+              </button>
+            </div>
+
+            <p className="text-xs text-neutral-600 leading-relaxed mb-3">
+              {liveResult.summary}
+            </p>
+
+            {/* Extracted claims pills */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {liveResult.claims?.map((c: any, i: number) => {
+                const isContra = c.evidenceStatus === 'contradicted' || c.evidenceStatus === 'unsupported';
+                return (
+                  <div
+                    key={i}
+                    className={`p-2.5 rounded-xl border text-xs flex flex-col justify-between ${
+                      isContra
+                        ? 'bg-rose-50 border-rose-200 text-rose-900'
+                        : 'bg-white border-neutral-200 text-neutral-800'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span className="font-mono text-3xs uppercase font-bold text-neutral-500">
+                          {c.claimType}
+                        </span>
+                        <span className={`text-3xs font-bold px-1.5 py-0.5 rounded ${
+                          isContra ? 'bg-rose-200 text-rose-800' : 'bg-emerald-100 text-emerald-800'
+                        }`}>
+                          {c.evidenceStatus}
+                        </span>
+                      </div>
+                      <p className="font-medium text-xs line-clamp-2">{c.claimText}</p>
+                    </div>
+                    <span className="text-3xs text-neutral-500 mt-2 font-mono truncate">
+                      {c.evidenceCitation}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* TAB 1: CLAIM EVIDENCE GRAPH VIEW (AD-EVIDENCE)          */}
+      {/* ═══════════════════════════════════════════════════════ */}
       {activeTab === "graph" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
           <ClaimEvidenceGraph
-            campaign={activeCampaign}
+            campaign={activeCampaign || { brand_name: liveBrand, product_name: liveProduct }}
             claims={activeClaims}
             variants={activeVariants}
           />
@@ -282,7 +529,7 @@ export default function DashboardOverviewPage() {
                 className="p-4 rounded-xl border"
               >
                 <span className="font-bold text-emerald-800 block mb-1">1. Atom Extraction</span>
-                <p className="text-neutral-600">Gemini AI breaks down marketing copy into factual assertions, numerical bounds, and required disclaimers.</p>
+                <p className="text-neutral-600">Gemini 3.8 AI breaks down marketing copy into factual assertions, numerical bounds, and required disclaimers.</p>
               </div>
               <div
                 style={{ backgroundColor: "rgba(59, 130, 246, 0.08)", borderColor: "rgba(59, 130, 246, 0.25)" }}
@@ -303,7 +550,9 @@ export default function DashboardOverviewPage() {
         </div>
       )}
 
-      {/* TAB 2: SEEDED EVALUATION DEMOS (PRD Section 18) */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* TAB 2: SEEDED EVALUATION DEMOS (PRD Section 18)        */}
+      {/* ═══════════════════════════════════════════════════════ */}
       {activeTab === "demos" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
           <div
@@ -427,19 +676,21 @@ export default function DashboardOverviewPage() {
         </div>
       )}
 
-      {/* TAB 3: OVERVIEW & CURRICULUM (Exact Side-by-Side Reference Layout via CSS Grid) */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* TAB 3: OVERVIEW & CURRICULUM (Exact Side-by-Side)       */}
+      {/* ═══════════════════════════════════════════════════════ */}
       {activeTab === "overview" && (
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.62fr) minmax(0, 1fr)", gap: "24px", alignItems: "start" }}>
 
           {/* ═════════════════════════════════════════════════ */}
-          {/* LEFT COLUMN: Hero Card + 2x2 Recommended Grid */}
+          {/* LEFT COLUMN: Hero Card + 2x2 Modular Grid       */}
           {/* ═════════════════════════════════════════════════ */}
           <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
 
-            {/* SECTION 1: Continue Learning (Hero Card) */}
+            {/* SECTION 1: Active Regional Flight (Hero Card) */}
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               <h2 style={{ fontSize: "16px", fontWeight: "700", color: "#11141A" }}>
-                Continue learning
+                Active Regional Flight
               </h2>
 
               {/* HERO CARD (Exact Reference Layout with Curvy Lime Patch & 3D Brain) */}
@@ -485,7 +736,7 @@ export default function DashboardOverviewPage() {
                     {/* Top row with Category and Action Icons */}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <span style={{ fontSize: "12px", fontWeight: "600", color: "#9CA3AF", display: "flex", alignItems: "center", gap: "6px" }}>
-                        <span style={{ color: "#6D5BFF" }}>🔷</span> Course
+                        <span style={{ color: "#6D5BFF" }}>🔷</span> Active Regional Campaign
                       </span>
                       
                       {/* Bell & More Circle Buttons */}
@@ -503,17 +754,20 @@ export default function DashboardOverviewPage() {
                       </div>
                     </div>
 
-                    {/* Course Title */}
+                    {/* Campaign Title */}
                     <div>
                       <h3 style={{ fontSize: "20px", fontWeight: "800", color: "#11141A", letterSpacing: "-0.02em", margin: 0 }}>
-                        {activeCampaign?.name || "Design Thinking I"}
+                        {activeCampaign?.name || "Rasa Festive Millet Launch — South India"}
                       </h3>
+                      <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">
+                        {activeCampaign?.brand_name || "Rasa Foods"} • {activeCampaign?.objective || "Festive Multilingual Adaptation across AP, Telangana & North"}
+                      </p>
                     </div>
 
                     {/* Progress Bar & Percentage */}
                     <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                       <div style={{ fontSize: "11px", fontWeight: "600", color: "#9CA3AF" }}>
-                        46% of 100% Completed
+                        46% of Regional Compliance Cleared (4 of 6 Languages)
                       </div>
                       <div style={{ width: "100%", backgroundColor: "#F3F4F6", borderRadius: "9999px", height: "8px", overflow: "hidden" }}>
                         <div
@@ -528,14 +782,14 @@ export default function DashboardOverviewPage() {
                     </div>
 
                     {/* Rounded Black Action Pill Button */}
-                    <div style={{ paddingTop: "4px" }}>
+                    <div style={{ paddingTop: "4px", display: "flex", alignItems: "center", gap: "10px" }}>
                       {activeCampaign ? (
-                        <Link href={`/campaigns/${activeCampaign.id}`}>
+                        <Link href={`/campaigns/${activeCampaign.id}/studio`}>
                           <button
                             style={{ backgroundColor: "#11141A", color: "#FFFFFF", fontSize: "12px", fontWeight: "700", padding: "9px 24px", borderRadius: "9999px", border: "none", cursor: "pointer" }}
                             className="hover:bg-black shadow-xs"
                           >
-                            Resume learning
+                            Open Regional Studio →
                           </button>
                         </Link>
                       ) : (
@@ -544,10 +798,18 @@ export default function DashboardOverviewPage() {
                             style={{ backgroundColor: "#11141A", color: "#FFFFFF", fontSize: "12px", fontWeight: "700", padding: "9px 24px", borderRadius: "9999px", border: "none", cursor: "pointer" }}
                             className="hover:bg-black shadow-xs"
                           >
-                            Start First Course
+                            Launch First Campaign
                           </button>
                         </Link>
                       )}
+
+                      <button
+                        onClick={() => setActiveTab("graph")}
+                        style={{ border: "1px solid #E5E7EB", backgroundColor: "#FFFFFF", color: "#374151", fontSize: "12px", fontWeight: "600", padding: "8px 18px", borderRadius: "9999px", cursor: "pointer" }}
+                        className="hover:bg-neutral-50 shadow-2xs"
+                      >
+                        Inspect Claim Graph
+                      </button>
                     </div>
 
                   </div>
@@ -555,16 +817,16 @@ export default function DashboardOverviewPage() {
               </div>
             </div>
 
-            {/* SECTION 2: Recommended For You (2x2 Grid) */}
+            {/* SECTION 2: Recommended Campaign Modules (2x2 Grid) */}
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <h2 style={{ fontSize: "16px", fontWeight: "700", color: "#11141A", margin: 0 }}>
-                  Recommended For You
+                  Campaign Intelligence Modules
                 </h2>
 
-                {/* Filter Tabs: All, Beginner, Intermediate, Advanced */}
+                {/* Filter Tabs: All, Telugu, Marathi, Tamil, Hindi */}
                 <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                  {(["all", "beginner", "intermediate", "advanced"] as const).map((lvl) => (
+                  {(["all", "telugu", "marathi", "tamil", "hindi"] as const).map((lvl) => (
                     <button
                       key={lvl}
                       onClick={() => setFilterLevel(lvl)}
@@ -586,12 +848,13 @@ export default function DashboardOverviewPage() {
                 </div>
               </div>
 
-              {/* 2x2 Modular Grid (Typography, 3D Design, UX Writing, Color Psychology) */}
+              {/* 2x2 Modular Grid (Claim Evidence, Transcreation, Brand Guardian, Campaign Passport) */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
 
-                {/* Card 1: Typography */}
+                {/* Card 1: Claim-Evidence Graph */}
                 <Link
-                  href={activeCampaign ? `/campaigns/${activeCampaign.id}/claims` : "/campaigns/new"}
+                  href={activeCampaign ? `/campaigns/${activeCampaign.id}/claims` : "#claim-graph"}
+                  onClick={() => setActiveTab("graph")}
                   style={{
                     backgroundColor: "#FFFFFF",
                     border: "1px solid #E5E7EB",
@@ -606,17 +869,17 @@ export default function DashboardOverviewPage() {
                 >
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     <span style={{ fontSize: "10px", fontWeight: "600", color: "#9CA3AF", display: "flex", alignItems: "center", gap: "4px" }}>
-                      <span style={{ color: "#6D5BFF" }}>🔷</span> Course
+                      <span style={{ color: "#6D5BFF" }}>🔷</span> Ad-Evidence Engine
                     </span>
                     <h4 style={{ fontSize: "15px", fontWeight: "800", color: "#11141A", margin: 0 }}>
-                      Typography
+                      Claim Evidence Graph
                     </h4>
                     <span style={{ fontSize: "10px", color: "#6B7280", backgroundColor: "#F3F4F6", padding: "2px 8px", borderRadius: "6px", width: "fit-content", fontWeight: "500" }}>
-                      Beginner • 1 hour
+                      Live • NABL Cites
                     </span>
                   </div>
 
-                  {/* Lime Curvy Shape with 3D ABC Blocks */}
+                  {/* Lime Curvy Shape with 3D Blocks */}
                   <div
                     style={{
                       backgroundColor: "#E2F87A",
@@ -634,7 +897,7 @@ export default function DashboardOverviewPage() {
                   </div>
                 </Link>
 
-                {/* Card 2: Basic 3D Design */}
+                {/* Card 2: Multilingual Transcreation Studio */}
                 <Link
                   href={activeCampaign ? `/campaigns/${activeCampaign.id}/studio` : "/campaigns/new"}
                   style={{
@@ -651,13 +914,13 @@ export default function DashboardOverviewPage() {
                 >
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     <span style={{ fontSize: "10px", fontWeight: "600", color: "#9CA3AF", display: "flex", alignItems: "center", gap: "4px" }}>
-                      <span style={{ color: "#6D5BFF" }}>🔷</span> Course
+                      <span style={{ color: "#6D5BFF" }}>🔷</span> Regional Studio
                     </span>
                     <h4 style={{ fontSize: "15px", fontWeight: "800", color: "#11141A", margin: 0 }}>
-                      Basic 3D Design
+                      Dialect Transcreation
                     </h4>
                     <span style={{ fontSize: "10px", color: "#6B7280", backgroundColor: "#F3F4F6", padding: "2px 8px", borderRadius: "6px", width: "fit-content", fontWeight: "500" }}>
-                      Advanced • 3 hours
+                      12 Languages • Slang
                     </span>
                   </div>
 
@@ -679,7 +942,7 @@ export default function DashboardOverviewPage() {
                   </div>
                 </Link>
 
-                {/* Card 3: UX Writing */}
+                {/* Card 3: Brand Guardian 3-Pass */}
                 <Link
                   href={activeCampaign ? `/campaigns/${activeCampaign.id}/guardian` : "/campaigns/new"}
                   style={{
@@ -696,13 +959,13 @@ export default function DashboardOverviewPage() {
                 >
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     <span style={{ fontSize: "10px", fontWeight: "600", color: "#9CA3AF", display: "flex", alignItems: "center", gap: "4px" }}>
-                      <span style={{ color: "#6D5BFF" }}>🔷</span> Challenge
+                      <span style={{ color: "#6D5BFF" }}>🔷</span> ASCI Guard
                     </span>
                     <h4 style={{ fontSize: "15px", fontWeight: "800", color: "#11141A", margin: 0 }}>
-                      UX Writing
+                      Brand Guardian 3-Pass
                     </h4>
                     <span style={{ fontSize: "10px", color: "#6B7280", backgroundColor: "#F3F4F6", padding: "2px 8px", borderRadius: "6px", width: "fit-content", fontWeight: "500" }}>
-                      Beginner • 8 questions
+                      Pass A, B & C • 0 Risk
                     </span>
                   </div>
 
@@ -724,7 +987,7 @@ export default function DashboardOverviewPage() {
                   </div>
                 </Link>
 
-                {/* Card 4: Color Psychology */}
+                {/* Card 4: Campaign Passport (Decision Trace) */}
                 <Link
                   href={activeCampaign ? `/campaigns/${activeCampaign.id}/passport` : "/campaigns/new"}
                   style={{
@@ -741,13 +1004,13 @@ export default function DashboardOverviewPage() {
                 >
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     <span style={{ fontSize: "10px", fontWeight: "600", color: "#9CA3AF", display: "flex", alignItems: "center", gap: "4px" }}>
-                      <span style={{ color: "#6D5BFF" }}>🔷</span> Challenge
+                      <span style={{ color: "#6D5BFF" }}>🔷</span> Legal Trace
                     </span>
                     <h4 style={{ fontSize: "15px", fontWeight: "800", color: "#11141A", margin: 0 }}>
-                      Color Psychology
+                      Campaign Passport
                     </h4>
                     <span style={{ fontSize: "10px", color: "#6B7280", backgroundColor: "#F3F4F6", padding: "2px 8px", borderRadius: "6px", width: "fit-content", fontWeight: "500" }}>
-                      Intermediate • 24 questions
+                      SHA-256 Version Lock
                     </span>
                   </div>
 
@@ -778,7 +1041,7 @@ export default function DashboardOverviewPage() {
                   style={{ fontSize: "12px", fontWeight: "700", color: "#11141A", textDecoration: "none" }}
                   className="hover:underline"
                 >
-                  See all courses ↗
+                  See all campaign modules ↗
                 </Link>
               </div>
             </div>
@@ -786,7 +1049,7 @@ export default function DashboardOverviewPage() {
           </div>
 
           {/* ═════════════════════════════════════════════════ */}
-          {/* RIGHT COLUMN: 5-Day Streak + Purple Job Board */}
+          {/* RIGHT COLUMN: 5-Day Streak + Indigo Suite Banner  */}
           {/* ═════════════════════════════════════════════════ */}
           <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
 
@@ -798,184 +1061,158 @@ export default function DashboardOverviewPage() {
               
               {/* Header with Lightning Badge */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                <h3 style={{ fontSize: "16px", fontWeight: "800", color: "#11141A", margin: 0 }}>
+                <h3 style={{ fontSize: "18px", fontWeight: "800", color: "#11141A", margin: 0 }}>
                   You&apos;re on a 5-day streak
                 </h3>
-
-                {/* Yellow lightning badge ⚡ 31 */}
-                <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "15px", fontWeight: "800", color: "#11141A" }}>
-                  <span style={{ color: "#EAB308", fontSize: "18px" }}>⚡</span>
-                  <span>31</span>
+                <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "16px", fontWeight: "800", color: "#11141A" }}>
+                  <span className="text-amber-500">⚡</span> 31
                 </div>
               </div>
 
-              {/* Days Row: S M T W T F S with Yellow Circles */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", paddingBottom: "16px", borderBottom: "1px solid #F3F4F6" }}>
-                {[
-                  { d: "S", active: false },
-                  { d: "M", active: false },
-                  { d: "T", active: true },
-                  { d: "W", active: true },
-                  { d: "T", active: true },
-                  { d: "F", active: true },
-                  { d: "S", active: true },
-                ].map((item, idx) => (
-                  <div key={idx} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
-                    <span style={{ fontSize: "10px", fontWeight: "700", color: "#9CA3AF" }}>{item.d}</span>
-                    <div
-                      style={{
-                        backgroundColor: item.active ? "#FFDE31" : "transparent",
-                        border: item.active ? "none" : "1px solid #E5E7EB",
-                        width: "28px",
-                        height: "28px",
-                        borderRadius: "50%",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "12px",
-                        fontWeight: "800",
-                        color: "#FFFFFF",
-                        boxShadow: item.active ? "0 2px 6px rgba(255, 222, 49, 0.4)" : "none"
-                      }}
-                    >
-                      {item.active ? "⚡" : ""}
-                    </div>
-                  </div>
-                ))}
+              {/* Day Pills Row: ( S ) ( M ) ( ⚡ ) ( ⚡ ) ( ⚡ ) ( ⚡ ) ( ⚡ ) ( S ) */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
+                <div style={{ width: "28px", height: "28px", borderRadius: "50%", border: "1px solid #E5E7EB", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: "700", color: "#6B7280" }}>
+                  S
+                </div>
+                <div style={{ width: "28px", height: "28px", borderRadius: "50%", border: "1px solid #E5E7EB", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: "700", color: "#6B7280" }}>
+                  M
+                </div>
+                <div style={{ width: "28px", height: "28px", borderRadius: "50%", backgroundColor: "#FFF5D6", border: "1px solid #FFE7A3", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px" }}>
+                  ⚡
+                </div>
+                <div style={{ width: "28px", height: "28px", borderRadius: "50%", backgroundColor: "#FFF5D6", border: "1px solid #FFE7A3", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px" }}>
+                  ⚡
+                </div>
+                <div style={{ width: "28px", height: "28px", borderRadius: "50%", backgroundColor: "#FFF5D6", border: "1px solid #FFE7A3", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px" }}>
+                  ⚡
+                </div>
+                <div style={{ width: "28px", height: "28px", borderRadius: "50%", backgroundColor: "#FFF5D6", border: "1px solid #FFE7A3", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px" }}>
+                  ⚡
+                </div>
+                <div style={{ width: "28px", height: "28px", borderRadius: "50%", backgroundColor: "#FFF5D6", border: "1px solid #FFE7A3", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px" }}>
+                  ⚡
+                </div>
+                <div style={{ width: "28px", height: "28px", borderRadius: "50%", border: "1px solid #E5E7EB", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: "700", color: "#6B7280" }}>
+                  S
+                </div>
               </div>
 
-              {/* Course Progress List with Teal Striped Progress Bars */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                {[
-                  { name: "Web Design", xp: "4,712 XP", val: "90%" },
-                  { name: "Color Psychology", xp: "4,328 XP", val: "80%" },
-                  { name: "UX Writing", xp: "2,810 XP", val: "55%" },
-                  { name: "Design Thinking II", xp: "1,561 XP", val: "35%" },
-                ].map((cItem, cIdx) => (
-                  <div key={cIdx} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "11px", fontWeight: "700" }}>
-                      <span style={{ color: "#374151" }}>{cItem.name}</span>
-                      <span style={{ color: "#9CA3AF", fontFamily: "monospace" }}>{cItem.xp}</span>
-                    </div>
-                    {/* Teal Progress Bar */}
-                    <div style={{ width: "100%", backgroundColor: "#F3F4F6", borderRadius: "9999px", height: "8px", overflow: "hidden" }}>
-                      <div
-                        style={{
-                          width: cItem.val,
-                          height: "100%",
-                          background: "linear-gradient(90deg, #20DFBA 0%, #00C9A7 100%)",
-                          borderRadius: "9999px"
-                        }}
-                      ></div>
-                    </div>
+              {/* Progress Categories with XP Numbers */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                
+                {/* 1. Regional Tone Consistency */}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                    <span style={{ fontSize: "12px", fontWeight: "700", color: "#11141A" }}>Regional Tone Consistency</span>
+                    <span style={{ fontSize: "11px", fontWeight: "700", color: "#6B7280" }}>4,712 XP</span>
                   </div>
-                ))}
+                  <div style={{ width: "100%", backgroundColor: "#F3F4F6", borderRadius: "9999px", height: "6px", overflow: "hidden" }}>
+                    <div style={{ width: "94%", height: "100%", backgroundColor: "#10B981", borderRadius: "9999px" }}></div>
+                  </div>
+                </div>
+
+                {/* 2. Cultural Nuance Safety */}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                    <span style={{ fontSize: "12px", fontWeight: "700", color: "#11141A" }}>Cultural Nuance Safety</span>
+                    <span style={{ fontSize: "11px", fontWeight: "700", color: "#6B7280" }}>4,328 XP</span>
+                  </div>
+                  <div style={{ width: "100%", backgroundColor: "#F3F4F6", borderRadius: "9999px", height: "6px", overflow: "hidden" }}>
+                    <div style={{ width: "90%", height: "100%", backgroundColor: "#10B981", borderRadius: "9999px" }}></div>
+                  </div>
+                </div>
+
+                {/* 3. ASCI Regulatory Claim Defense */}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                    <span style={{ fontSize: "12px", fontWeight: "700", color: "#11141A" }}>ASCI Regulatory Claim Defense</span>
+                    <span style={{ fontSize: "11px", fontWeight: "700", color: "#6B7280" }}>2,810 XP</span>
+                  </div>
+                  <div style={{ width: "100%", backgroundColor: "#F3F4F6", borderRadius: "9999px", height: "6px", overflow: "hidden" }}>
+                    <div style={{ width: "65%", height: "100%", backgroundColor: "#10B981", borderRadius: "9999px" }}></div>
+                  </div>
+                </div>
+
+                {/* 4. Indic Script & Dialect Preservation */}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                    <span style={{ fontSize: "12px", fontWeight: "700", color: "#11141A" }}>Indic Script & Dialect Preservation</span>
+                    <span style={{ fontSize: "11px", fontWeight: "700", color: "#6B7280" }}>1,561 XP</span>
+                  </div>
+                  <div style={{ width: "100%", backgroundColor: "#F3F4F6", borderRadius: "9999px", height: "6px", overflow: "hidden" }}>
+                    <div style={{ width: "42%", height: "100%", backgroundColor: "#10B981", borderRadius: "9999px" }}></div>
+                  </div>
+                </div>
+
               </div>
 
-              {/* View More Details Link */}
-              <div style={{ paddingTop: "16px", marginTop: "16px", borderTop: "1px solid #F3F4F6", textAlign: "left" }}>
-                <button
-                  onClick={() => setActiveTab("graph")}
-                  style={{ fontSize: "12px", fontWeight: "700", color: "#4B5563", background: "none", border: "none", cursor: "pointer", padding: 0 }}
-                  className="hover:text-black"
+              {/* View more details footer */}
+              <div style={{ marginTop: "20px", paddingTop: "12px", borderTop: "1px solid #F3F4F6", textAlign: "right" }}>
+                <Link
+                  href={activeCampaign ? `/campaigns/${activeCampaign.id}/guardian` : "/campaigns/new"}
+                  style={{ fontSize: "12px", fontWeight: "700", color: "#11141A", textDecoration: "none" }}
+                  className="hover:underline"
                 >
-                  View more details &gt;
-                </button>
+                  View compliance audit trace &gt;
+                </Link>
               </div>
 
             </div>
 
-            {/* BOTTOM RIGHT BANNER CARD: Rich Purple Gradient Job Board Banner */}
+            {/* VIBRANT PURPLE/INDIGO SUITE BANNER (Exact Reference Match) */}
             <div
               style={{
-                background: "linear-gradient(135deg, #735CFF 0%, #5136E8 100%)",
+                background: "linear-gradient(135deg, #604AE3 0%, #402EC4 100%)",
                 borderRadius: "24px",
                 padding: "24px",
                 color: "#FFFFFF",
                 display: "flex",
                 flexDirection: "column",
-                justifyContent: "space-between",
-                minHeight: "180px",
-                position: "relative",
-                overflow: "hidden"
+                gap: "16px",
+                boxShadow: "0 10px 25px rgba(64, 46, 196, 0.25)"
               }}
-              className="shadow-md"
             >
-              
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxWidth: "65%", zIndex: 2 }}>
-                <h3 style={{ fontSize: "17px", fontWeight: "800", lineHeight: "1.2", margin: 0 }}>
-                  The #1 job board for UI Designer!
+              <div>
+                <h3 style={{ fontSize: "18px", fontWeight: "800", color: "#FFFFFF", margin: 0, lineHeight: "1.25" }}>
+                  The #1 AI Intelligence Suite for Regional Marketing!
                 </h3>
-                <p style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.8)", lineHeight: "1.4", margin: 0 }}>
-                  Explore verified brand campaign opportunities across 25+ Indian regional markets.
+                <p style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.8)", marginTop: "6px", margin: 0, lineHeight: "1.4" }}>
+                  Adapt campaigns across Indian languages without losing factual accuracy, violating brand guidelines or risking ASCI penalties.
                 </p>
               </div>
 
-              {/* Pill Button: Find a job */}
-              <div style={{ paddingTop: "16px", zIndex: 2 }}>
+              {/* Pill Tags */}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                <span style={{ backgroundColor: "rgba(255, 255, 255, 0.15)", borderRadius: "6px", padding: "4px 8px", fontSize: "11px", fontWeight: "600" }}>
+                  &lt;/&gt; Gemini 3.8 Live
+                </span>
+                <span style={{ backgroundColor: "rgba(255, 255, 255, 0.15)", borderRadius: "6px", padding: "4px 8px", fontSize: "11px", fontWeight: "600" }}>
+                  🛡️ ASCI Guard
+                </span>
+                <span style={{ backgroundColor: "rgba(255, 255, 255, 0.15)", borderRadius: "6px", padding: "4px 8px", fontSize: "11px", fontWeight: "600" }}>
+                  ⚡ Ad-Evidence Engine
+                </span>
+              </div>
+
+              {/* White Action Pill Button */}
+              <div>
                 <Link href="/campaigns/new">
                   <button
                     style={{
                       backgroundColor: "#FFFFFF",
-                      color: "#11141A",
+                      color: "#402EC4",
+                      borderRadius: "9999px",
+                      padding: "8px 20px",
                       fontSize: "12px",
                       fontWeight: "800",
-                      padding: "10px 22px",
-                      borderRadius: "9999px",
                       border: "none",
                       cursor: "pointer"
                     }}
-                    className="hover:bg-neutral-100 shadow-xs"
+                    className="hover:bg-neutral-100 shadow-sm"
                   >
-                    Find a job
+                    Create New Campaign
                   </button>
                 </Link>
-              </div>
-
-              {/* Decorative Glassmorphic Badges on Right Side */}
-              <div style={{ position: "absolute", right: "16px", top: "20px", display: "flex", flexDirection: "column", gap: "6px", pointerEvents: "none", zIndex: 1 }}>
-                <span
-                  style={{
-                    backgroundColor: "rgba(255, 255, 255, 0.18)",
-                    border: "1px solid rgba(255, 255, 255, 0.25)",
-                    fontSize: "10px",
-                    fontFamily: "monospace",
-                    padding: "4px 10px",
-                    borderRadius: "9999px",
-                    color: "rgba(255, 255, 255, 0.95)",
-                    whiteSpace: "nowrap"
-                  }}
-                >
-                  &lt;/&gt; UI Engineer
-                </span>
-                <span
-                  style={{
-                    backgroundColor: "rgba(255, 255, 255, 0.18)",
-                    border: "1px solid rgba(255, 255, 255, 0.25)",
-                    fontSize: "10px",
-                    fontFamily: "monospace",
-                    padding: "4px 10px",
-                    borderRadius: "9999px",
-                    color: "rgba(255, 255, 255, 0.95)",
-                    whiteSpace: "nowrap"
-                  }}
-                >
-                  🛡️ Quality Assurance
-                </span>
-                <span
-                  style={{
-                    backgroundColor: "rgba(255, 255, 255, 0.18)",
-                    border: "1px solid rgba(255, 255, 255, 0.25)",
-                    fontSize: "10px",
-                    fontFamily: "monospace",
-                    padding: "4px 10px",
-                    borderRadius: "9999px",
-                    color: "rgba(255, 255, 255, 0.95)",
-                    whiteSpace: "nowrap"
-                  }}
-                >
-                  👥 Project Manager
-                </span>
               </div>
 
             </div>
