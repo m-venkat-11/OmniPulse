@@ -1,107 +1,125 @@
-import Link from "next/link";
-import {
-  Sparkles, ChevronDown, Home, ShieldCheck, Globe2,
-  FileText, Award, Layers
-} from "lucide-react";
-import { getSession } from "@/app/auth/actions";
+"use client";
 
-export default async function DashboardLayout({
+import React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard, Plus, ShieldCheck, Sparkles, FolderOpen,
+  ChevronDown, Layers, FileText, CheckCircle2, Globe
+} from "lucide-react";
+
+export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const sessionEmail = await getSession();
-  const email = sessionEmail || "ajengz@gmail.com";
+  const pathname = usePathname();
+
+  const isOverview = pathname === "/" || pathname === "/dashboard";
+  const isNewCampaign = pathname === "/campaigns/new";
+  const isLibrary = pathname.includes("/library");
 
   return (
-    <div
-      style={{ backgroundColor: "#0C0E14" }}
-      className="min-h-screen p-3 sm:p-5 lg:p-6 flex flex-col items-center"
-    >
-      {/* Outer Shell Wrapper (Matching User Reference Image Exact Layout) */}
-      <div className="w-full max-w-[1400px] flex flex-col space-y-4">
-        
-        {/* Top Dark Header Bar (Directly Inset into Dark Tablet Chassis) */}
-        <header className="flex flex-wrap items-center justify-between gap-4 px-3 py-1 text-white">
+    <div className="min-h-screen bg-[#FBF9F5] text-[#292B29] font-sans flex flex-col">
+      {/* Top Enterprise Header Bar */}
+      <header className="bg-[#1A3C29] text-[#FFFDF8] border-b border-[#1A3C29]/20 px-6 py-3.5 sticky top-0 z-30 shadow-md">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
           
-          {/* Brand Logo: Clean White Logo Matching Reference Image with Braco Tag */}
-          <Link href="/dashboard" className="flex items-center gap-2.5 group">
-            <span className="font-sans font-extrabold text-white text-2xl tracking-tight group-hover:opacity-90 transition-opacity">
-              quixel
-            </span>
-            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-            <span className="text-3xs font-mono text-neutral-400 uppercase tracking-widest hidden sm:inline-block">
-              Braco OmniPulse
-            </span>
-          </Link>
-
-          {/* Central Pill Navigation Menu */}
-          <nav
-            style={{ backgroundColor: "#181C23" }}
-            className="flex items-center gap-1.5 px-2 py-1.5 rounded-full border border-white/10 shadow-inner overflow-x-auto max-w-full"
-          >
-            <Link
-              href="/dashboard"
-              style={{ backgroundColor: "#262C37" }}
-              className="flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold text-white shadow transition-all whitespace-nowrap"
-            >
-              <Home size={13} className="text-white/80" />
-              <span>Dashboard</span>
+          {/* Brand Identity */}
+          <div className="flex items-center gap-3">
+            <Link href="/dashboard" className="flex items-center gap-2.5 group">
+              <div className="w-9 h-9 rounded-xl bg-[#FFFDF8] text-[#1A3C29] font-serif font-black text-xl flex items-center justify-center shadow-sm">
+                Ω
+              </div>
+              <div>
+                <span className="font-serif font-bold text-lg text-[#FFFDF8] tracking-tight block leading-tight">
+                  BRACO OMNIPULSE
+                </span>
+                <span className="text-[10px] font-mono text-[#BFE4DF] uppercase tracking-wider block leading-tight">
+                  Regional Campaign Intelligence
+                </span>
+              </div>
             </Link>
 
+            <span className="hidden sm:inline-block text-xs font-medium px-2.5 py-0.5 rounded-full bg-[#FFFDF8]/10 text-[#FFFDF8]/90 border border-[#FFFDF8]/15">
+              Samartha Stage 1
+            </span>
+          </div>
+
+          {/* Main Navigation Menu */}
+          <nav className="flex items-center gap-1.5 bg-[#143020] p-1 rounded-full border border-[#FFFDF8]/15 overflow-x-auto">
             <Link
-              href="/dashboard#claim-graph"
-              className="px-3.5 py-1.5 rounded-full text-xs font-medium text-white/70 hover:text-white hover:bg-white/5 transition-all whitespace-nowrap"
+              href="/dashboard"
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${
+                isOverview
+                  ? "bg-[#FFFDF8] text-[#1A3C29] shadow-sm font-bold"
+                  : "text-[#FFFDF8]/80 hover:text-[#FFFDF8] hover:bg-[#FFFDF8]/10"
+              }`}
             >
-              Claim Graph
+              <LayoutDashboard size={14} />
+              <span>Campaigns</span>
             </Link>
 
             <Link
               href="/campaigns/new"
-              className="px-3.5 py-1.5 rounded-full text-xs font-medium text-white/70 hover:text-white hover:bg-white/5 transition-all whitespace-nowrap"
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${
+                isNewCampaign
+                  ? "bg-[#FFFDF8] text-[#1A3C29] shadow-sm font-bold"
+                  : "text-[#FFFDF8]/80 hover:text-[#FFFDF8] hover:bg-[#FFFDF8]/10"
+              }`}
             >
-              New Campaign
+              <Plus size={14} />
+              <span>Create Campaign</span>
             </Link>
 
             <Link
               href="/dashboard/library"
-              className="px-3.5 py-1.5 rounded-full text-xs font-medium text-white/70 hover:text-white hover:bg-white/5 transition-all whitespace-nowrap"
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${
+                isLibrary
+                  ? "bg-[#FFFDF8] text-[#1A3C29] shadow-sm font-bold"
+                  : "text-[#FFFDF8]/80 hover:text-[#FFFDF8] hover:bg-[#FFFDF8]/10"
+              }`}
             >
-              Brand Library
+              <FolderOpen size={14} />
+              <span>Brand Knowledge & Claims</span>
             </Link>
           </nav>
 
-          {/* User Profile Pill (Right Side) */}
-          <div
-            style={{ backgroundColor: "#181C23" }}
-            className="flex items-center gap-2.5 pl-2 pr-3.5 py-1.5 rounded-full border border-white/10 hover:border-white/20 transition-all cursor-pointer"
-          >
-            <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-500 flex items-center justify-center text-[#0C0E14] font-bold text-xs shadow shrink-0">
-              A
+          {/* Workspace Pill & User Role */}
+          <div className="flex items-center gap-3">
+            <div className="hidden md:flex items-center gap-2 text-right">
+              <div>
+                <span className="text-xs font-bold text-[#FFFDF8] block leading-tight">
+                  Brand Director (Reviewer)
+                </span>
+                <span className="text-[10px] text-[#BFE4DF] block leading-tight font-mono">
+                  Tenant: Braco India Workspace
+                </span>
+              </div>
             </div>
-            <div className="text-left hidden sm:block">
-              <span className="text-xs font-bold text-white block leading-tight">Hi, Ajeng!</span>
-              <span className="text-3xs text-neutral-400 block leading-tight truncate max-w-[130px]">{email}</span>
+
+            <div className="w-8 h-8 rounded-full bg-[#BFE4DF] text-[#1A3C29] font-bold text-xs flex items-center justify-center border-2 border-[#FFFDF8] shadow-sm">
+              BD
             </div>
-            <ChevronDown size={13} className="text-neutral-400 shrink-0" />
           </div>
 
-        </header>
+        </div>
+      </header>
 
-        {/* Main Inner Surface: Crisp Clean Rounded Canvas */}
-        <main
-          style={{ backgroundColor: "#FFFFFF" }}
-          className="rounded-[32px] shadow-2xl p-6 sm:p-8 lg:p-10 border border-white/10 min-h-[calc(100vh-110px)] text-[#11141A]"
-        >
-          {children}
-        </main>
+      {/* Main Content Workspace Canvas */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+        {children}
+      </main>
 
-        {/* Subtle Bottom Credit */}
-        <footer className="text-center text-3xs text-neutral-500 py-1 font-mono">
-          Braco OmniPulse • AI-Assisted Regional Campaign Intelligence with Turso libSQL & Gemini AI
-        </footer>
-
-      </div>
+      {/* Enterprise Audit Footer */}
+      <footer className="border-t border-[#1A3C29]/10 bg-[#FFFDF8] py-4 px-6 text-center text-xs text-[#292B29]/70 font-mono">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+          <span>Braco OmniPulse • AI-Assisted Regional Campaign Intelligence & Ad-Evidence Engine</span>
+          <span className="flex items-center gap-1.5 text-[#1A3C29] font-semibold">
+            <ShieldCheck size={14} /> Turso libSQL Hash-Verified • Gemini 3.8 Multilingual Adapter
+          </span>
+        </div>
+      </footer>
     </div>
   );
 }

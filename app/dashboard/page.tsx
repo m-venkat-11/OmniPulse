@@ -4,36 +4,28 @@ import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import {
-  Sparkles, ShieldCheck, Zap, ChevronRight, FileText,
-  Plus, Globe2, AlertTriangle, CheckCircle2, Lock, Flame,
-  Award, Layers, Trash2, Bell, MoreHorizontal, ArrowRight,
-  RefreshCw, Check, XCircle
+  Sparkles, ShieldCheck, Plus, Globe2, AlertTriangle, CheckCircle2,
+  Lock, Trash2, ArrowRight, RefreshCw, XCircle, FileText, FlaskConical,
+  Award, Layers, Check, ExternalLink, HelpCircle
 } from "lucide-react";
 import Link from "next/link";
 import {
   getCampaigns, getDashboardStats, seedDemoCampaignAction,
-  deleteCampaign, getClaimAtoms, getAssetVersionsForCampaign,
-  analyzeAdEvidenceLiveAction
+  deleteCampaign, analyzeAdEvidenceLiveAction, createCampaign
 } from "@/app/actions";
-import { ClaimEvidenceGraph } from "@/components/graph/ClaimEvidenceGraph";
 
 export default function DashboardOverviewPage() {
-  const [mounted, setMounted] = useState(false);
   const [campaigns, setCampaigns] = useState<any[]>([]);
-  const [stats, setStats] = useState({ totalCampaigns: 0, pendingReviews: 0, verificationBlockers: 0, approvedVersions: 0 });
+  const [stats, setStats] = useState({
+    totalCampaigns: 0,
+    pendingReviews: 0,
+    verificationBlockers: 0,
+    approvedVersions: 0
+  });
   const [loading, setLoading] = useState(true);
   const [isSeeding, setIsSeeding] = useState<string | null>(null);
 
-  // Tabs
-  const [activeTab, setActiveTab] = useState<"overview" | "graph" | "demos">("overview");
-
-  // Filter chips for modular cards
-  const [filterLevel, setFilterLevel] = useState<"all" | "telugu" | "marathi" | "tamil" | "hindi">("all");
-
-  const [activeClaims, setActiveClaims] = useState<any[]>([]);
-  const [activeVariants, setActiveVariants] = useState<any[]>([]);
-
-  // ── LIVE USER-INPUT AD-EVIDENCE ENGINE STATE ──
+  // ── LIVE USER INPUT AD-EVIDENCE & CLAIM ENGINE STATE ──
   const [liveAdCopy, setLiveAdCopy] = useState(
     "Rasa Festive Millet Bites are baked with 100% whole grain barnyard millet and offer 4x higher dietary fiber than ordinary wheat cookies. Our patented herbal formula permanently cures morning acidity in 24 hours!"
   );
@@ -41,9 +33,9 @@ export default function DashboardOverviewPage() {
   const [liveProduct, setLiveProduct] = useState("Festive Millet Bites");
   const [isAnalyzingLive, setIsAnalyzingLive] = useState(false);
   const [liveResult, setLiveResult] = useState<any>(null);
+  const [isSavingLiveCampaign, setIsSavingLiveCampaign] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     loadData();
   }, []);
 
@@ -55,16 +47,6 @@ export default function DashboardOverviewPage() {
       ]);
       setCampaigns(campaignData as any[]);
       setStats(statsData);
-
-      if (campaignData.length > 0) {
-        const topCampaign = campaignData[0];
-        const [cl, vr] = await Promise.all([
-          getClaimAtoms(String(topCampaign.id)),
-          getAssetVersionsForCampaign(String(topCampaign.id)),
-        ]);
-        setActiveClaims(cl as any[]);
-        setActiveVariants(vr as any[]);
-      }
     } catch (err) {
       console.error("Failed to load dashboard:", err);
     } finally {
@@ -77,7 +59,6 @@ export default function DashboardOverviewPage() {
     try {
       await seedDemoCampaignAction(type);
       await loadData();
-      setActiveTab("overview");
     } catch (err: any) {
       alert("Seeding failed: " + err.message);
     } finally {
@@ -88,7 +69,7 @@ export default function DashboardOverviewPage() {
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm("Delete this campaign?")) return;
+    if (!confirm("Are you sure you want to delete this campaign?")) return;
     await deleteCampaign(id);
     await loadData();
   };
@@ -108,22 +89,6 @@ export default function DashboardOverviewPage() {
         productName: prodToAnalyze,
       });
       setLiveResult(res);
-
-      if (res.claims && res.claims.length > 0) {
-        setActiveClaims(res.claims);
-      }
-      if (res.regionalAdaptations && res.regionalAdaptations.length > 0) {
-        setActiveVariants(
-          res.regionalAdaptations.map((r: any, idx: number) => ({
-            id: `live-var-${idx}`,
-            target_language: r.language,
-            dialect: r.dialect || "Native",
-            status: r.status,
-            regional_adaptation: r.adaptation,
-            version_number: 1,
-          }))
-        );
-      }
     } catch (err: any) {
       alert("AI Analysis Error: " + err.message);
     } finally {
@@ -131,1096 +96,596 @@ export default function DashboardOverviewPage() {
     }
   };
 
-  const activeCampaign = campaigns[0] || null;
+  const handleSaveLiveAsCampaign = async () => {
+    if (!liveResult) return;
+    setIsSavingLiveCampaign(true);
+
+    try {
+      const res = await createCampaign({
+        name: `${liveBrand} — ${liveProduct} Campaign`,
+        brandName: liveBrand,
+        productName: liveProduct,
+        objective: `Regional multilingual rollout with verified Claim Atoms and ASCI compliance.`,
+        targetAudience: "Regional vernacular consumers across urban and rural tiers",
+        sourceLanguage: "English",
+        targetLanguages: ["Telugu", "Hindi", "Marathi"],
+        channels: ["social_media", "video"],
+        keyMessage: liveAdCopy,
+        callToAction: "Order Now / Learn More",
+        tone: "Warm & Authentic",
+        schedule: "Immediate",
+        approvedFacts: liveResult.claims
+          ?.filter((c: any) => c.evidenceStatus === 'supported')
+          ?.map((c: any) => c.claimText)
+          ?.join("\n") || liveAdCopy,
+        prohibitedClaims: liveResult.claims
+          ?.filter((c: any) => c.evidenceStatus === 'contradicted' || c.claimType === 'prohibited_claim')
+          ?.map((c: any) => c.claimText)
+          ?.join("\n") || "No unverified medical cures",
+        requiredDisclaimers: "Include #Ad and statutory FSSAI disclaimer",
+      });
+
+      await loadData();
+      alert("Campaign saved successfully! You can now adapt, verify, and approve it.");
+    } catch (err: any) {
+      alert("Failed to save campaign: " + err.message);
+    } finally {
+      setIsSavingLiveCampaign(false);
+    }
+  };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }} className="text-[#11141A]">
+    <div className="space-y-8 animate-fade-in">
 
-      {/* TOP ROW: Greeting & 4 Stat Cards (Exact Reference Image Style) */}
-      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "16px" }}>
+      {/* TOP EXECUTIVE BANNER */}
+      <div className="bg-[#FFFDF8] rounded-2xl border border-[#1A3C29]/15 p-6 sm:p-8 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-[#11141A] tracking-tight">
-            Good Morning, Campaign Director!
-          </h1>
-          <p className="text-xs sm:text-sm text-neutral-500 font-medium mt-1 flex items-center gap-1.5">
-            <span>You&apos;re 98% compliant across regional markets.</span>
-            <span className="text-amber-500 font-bold">⚡</span>
-            <span className="text-neutral-400 font-normal ml-2 hidden sm:inline">
-              (Live ASCI & FSSAI claim evidence verification active)
+          <div className="flex items-center gap-2 mb-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#1A3C29] animate-pulse"></span>
+            <span className="text-2xs font-mono font-bold uppercase tracking-widest text-[#1A3C29]">
+              Braco OmniPulse • Regional Campaign Intelligence
             </span>
+          </div>
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold text-[#1A3C29] tracking-tight">
+            Campaign Intelligence Workspace
+          </h1>
+          <p className="text-xs sm:text-sm text-[#292B29]/75 mt-1 max-w-2xl leading-relaxed">
+            Turn one campaign brief into locally adapted, brand-checked, human-approved and measurable campaign options—with evidence and decision history visible at every step.
           </p>
         </div>
 
-        {/* 4 Stat Cards in a Row (Claim Atoms, Active Flights, Adapts, Safety Score) */}
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px" }}>
-          
-          {/* Card 1: Gold / Claim Atoms */}
-          <div
-            style={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: "18px", padding: "10px 16px", display: "flex", alignItems: "center", gap: "12px", minWidth: "120px" }}
-            className="shadow-xs"
-          >
-            <div
-              style={{ backgroundColor: "#FFF5D6", border: "1px solid #FFE7A3", width: "32px", height: "32px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}
-            >
-              🪙
-            </div>
-            <div>
-              <span style={{ fontSize: "16px", fontWeight: "800", color: "#11141A", display: "block", lineHeight: "1" }}>
-                {activeClaims.length > 0 ? activeClaims.length * 12 + 104 : (stats.approvedVersions > 0 ? stats.approvedVersions * 42 : 248)}
-              </span>
-              <span style={{ fontSize: "10px", color: "#6B7280", fontWeight: "600", display: "block", marginTop: "3px" }}>
-                Claim Atoms
-              </span>
-            </div>
-          </div>
-
-          {/* Card 2: Lavender / Campaigns */}
-          <div
-            style={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: "18px", padding: "10px 16px", display: "flex", alignItems: "center", gap: "12px", minWidth: "120px" }}
-            className="shadow-xs"
-          >
-            <div
-              style={{ backgroundColor: "#EFEAFF", border: "1px solid #DDD4FF", width: "32px", height: "32px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}
-            >
-              🎯
-            </div>
-            <div>
-              <span style={{ fontSize: "16px", fontWeight: "800", color: "#11141A", display: "block", lineHeight: "1" }}>
-                {stats.totalCampaigns > 0 ? stats.totalCampaigns : 17}
-              </span>
-              <span style={{ fontSize: "10px", color: "#6B7280", fontWeight: "600", display: "block", marginTop: "3px" }}>
-                Campaign Flights
-              </span>
-            </div>
-          </div>
-
-          {/* Card 3: Orange / Adapts */}
-          <div
-            style={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: "18px", padding: "10px 16px", display: "flex", alignItems: "center", gap: "12px", minWidth: "120px" }}
-            className="shadow-xs"
-          >
-            <div
-              style={{ backgroundColor: "#FFF0E6", border: "1px solid #FFD5BA", width: "32px", height: "32px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}
-            >
-              📑
-            </div>
-            <div>
-              <span style={{ fontSize: "16px", fontWeight: "800", color: "#11141A", display: "block", lineHeight: "1" }}>
-                120
-              </span>
-              <span style={{ fontSize: "10px", color: "#6B7280", fontWeight: "600", display: "block", marginTop: "3px" }}>
-                Regional Adapts
-              </span>
-            </div>
-          </div>
-
-          {/* Card 4: Purple / Compliance Safety */}
-          <div
-            style={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: "18px", padding: "10px 16px", display: "flex", alignItems: "center", gap: "12px", minWidth: "120px" }}
-            className="shadow-xs"
-          >
-            <div
-              style={{ backgroundColor: "#F5ECFF", border: "1px solid #E7D1FF", width: "32px", height: "32px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}
-            >
-              🛡️
-            </div>
-            <div>
-              <span style={{ fontSize: "16px", fontWeight: "800", color: "#11141A", display: "block", lineHeight: "1" }}>
-                {liveResult ? `${liveResult.overallScore}%` : "98.6%"}
-              </span>
-              <span style={{ fontSize: "10px", color: "#6B7280", fontWeight: "600", display: "block", marginTop: "3px" }}>
-                ASCI Score
-              </span>
-            </div>
-          </div>
-
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href="/campaigns/new">
+            <Button variant="primary" size="md" icon={<Plus size={15}/>}>
+              New Campaign Brief
+            </Button>
+          </Link>
         </div>
       </div>
 
-      {/* VIEW TABS BAR */}
-      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "12px", borderBottom: "1px solid #F3F4F6", paddingBottom: "12px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <button
-            onClick={() => setActiveTab("overview")}
-            style={{
-              backgroundColor: activeTab === "overview" ? "#11141A" : "transparent",
-              color: activeTab === "overview" ? "#FFFFFF" : "#6B7280",
-              borderRadius: "9999px",
-              padding: "8px 16px",
-              fontSize: "12px",
-              fontWeight: "700",
-              border: "none",
-              cursor: "pointer"
-            }}
-          >
-            Overview & Campaign Modules
-          </button>
-          <button
-            onClick={() => setActiveTab("graph")}
-            style={{
-              backgroundColor: activeTab === "graph" ? "#11141A" : "transparent",
-              color: activeTab === "graph" ? "#FFFFFF" : "#6B7280",
-              borderRadius: "9999px",
-              padding: "8px 16px",
-              fontSize: "12px",
-              fontWeight: "700",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              border: "none",
-              cursor: "pointer"
-            }}
-          >
-            <Sparkles size={13} className="text-emerald-500" />
-            Claim Evidence Graph (Ad-Evidence Engine)
-          </button>
-          <button
-            onClick={() => setActiveTab("demos")}
-            style={{
-              backgroundColor: activeTab === "demos" ? "#11141A" : "transparent",
-              color: activeTab === "demos" ? "#FFFFFF" : "#6B7280",
-              borderRadius: "9999px",
-              padding: "8px 16px",
-              fontSize: "12px",
-              fontWeight: "700",
-              border: "none",
-              cursor: "pointer"
-            }}
-          >
-            Evaluation Scenarios (PRD Section 18)
-          </button>
-        </div>
-
-        <Link href="/campaigns/new">
-          <button
-            style={{ backgroundColor: "#11141A", color: "#FFFFFF", borderRadius: "9999px", padding: "8px 18px", fontSize: "12px", fontWeight: "700", display: "flex", alignItems: "center", gap: "6px", border: "none", cursor: "pointer" }}
-            className="hover:bg-black shadow-xs"
-          >
-            <Plus size={14} />
-            <span>Create Campaign</span>
-          </button>
-        </Link>
-      </div>
-
-      {/* ═══════════════════════════════════════════════════════ */}
-      {/* SECTION: LIVE USER INPUT AD-EVIDENCE DETECTION ENGINE   */}
-      {/* ═══════════════════════════════════════════════════════ */}
-      <div
-        style={{
-          backgroundColor: "#F9FAFB",
-          border: "1.5px solid #E5E7EB",
-          borderRadius: "24px",
-          padding: "20px 24px",
-        }}
-        className="shadow-xs"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#00FF87] shadow-[0_0_8px_#00FF87]"></span>
-            <h3 className="font-extrabold text-[#11141A] text-base tracking-tight">
-              Ad-Evidence: Live Input Claim Detection & Verification Sandbox
-            </h3>
-            <span className="text-3xs font-mono font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-              Gemini 3.8 Live
+      {/* METRIC TILES: REAL DATABASE METRICS */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Metric 1 */}
+        <div className="bg-[#FFFDF8] rounded-xl border border-[#1A3C29]/15 p-5 shadow-2xs">
+          <span className="text-2xs font-semibold uppercase tracking-wider text-[#292B29]/60 block mb-1">
+            Persisted Campaigns
+          </span>
+          <div className="flex items-baseline gap-2">
+            <span className="font-serif text-2xl sm:text-3xl font-bold text-[#1A3C29]">
+              {stats.totalCampaigns}
             </span>
+            <span className="text-2xs text-[#292B29]/60">in workspace</span>
           </div>
-          <span className="text-xs text-neutral-500">
-            Paste marketing copy or select an Indian market scenario below:
+        </div>
+
+        {/* Metric 2 */}
+        <div className="bg-[#FFFDF8] rounded-xl border border-[#1A3C29]/15 p-5 shadow-2xs">
+          <span className="text-2xs font-semibold uppercase tracking-wider text-[#292B29]/60 block mb-1">
+            Pending Review Queue
+          </span>
+          <div className="flex items-baseline gap-2">
+            <span className="font-serif text-2xl sm:text-3xl font-bold text-amber-700">
+              {stats.pendingReviews}
+            </span>
+            <span className="text-2xs text-[#292B29]/60">variants awaiting review</span>
+          </div>
+        </div>
+
+        {/* Metric 3 */}
+        <div className="bg-[#FFFDF8] rounded-xl border border-[#1A3C29]/15 p-5 shadow-2xs">
+          <span className="text-2xs font-semibold uppercase tracking-wider text-[#292B29]/60 block mb-1">
+            Brand Guardian Blockers
+          </span>
+          <div className="flex items-baseline gap-2">
+            <span className={`font-serif text-2xl sm:text-3xl font-bold ${stats.verificationBlockers > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+              {stats.verificationBlockers}
+            </span>
+            <span className="text-2xs text-[#292B29]/60">critical findings flagged</span>
+          </div>
+        </div>
+
+        {/* Metric 4 */}
+        <div className="bg-[#FFFDF8] rounded-xl border border-[#1A3C29]/15 p-5 shadow-2xs">
+          <span className="text-2xs font-semibold uppercase tracking-wider text-[#292B29]/60 block mb-1">
+            Certified Approvals
+          </span>
+          <div className="flex items-baseline gap-2">
+            <span className="font-serif text-2xl sm:text-3xl font-bold text-emerald-800">
+              {stats.approvedVersions}
+            </span>
+            <span className="text-2xs text-[#292B29]/60">immutable versions locked</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* SECTION 1: DYNAMIC LIVE CLAIM DETECTION & ADAPTATION    */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      <div className="bg-[#FFFDF8] rounded-2xl border border-[#1A3C29]/15 p-6 sm:p-8 shadow-sm space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#1A3C29]/10">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+              <h2 className="font-serif text-lg font-bold text-[#1A3C29]">
+                Live Ad-Evidence: Dynamic Claim Extraction & Regional Adaptation
+              </h2>
+              <Badge variant="default" className="text-2xs font-mono">GEMINI 3.8 LIVE</Badge>
+            </div>
+            <p className="text-xs text-[#292B29]/75 mt-1">
+              Enter any real marketing copy or product assertion below. Gemini dynamically extracts atomic claims, evaluates ASCI compliance, and adapts the copy to Indian vernacular languages.
+            </p>
+          </div>
+
+          <span className="text-2xs font-mono text-[#292B29]/60">
+            PRD Diagram 1 & 4 Live Engine
           </span>
         </div>
 
-        {/* Quick presets */}
-        <div className="flex flex-wrap gap-2 mb-3">
-          <button
-            type="button"
-            onClick={() => {
-              setLiveBrand("Rasa Foods");
-              setLiveProduct("Rasa Millet Festive Pack");
-              setLiveAdCopy("Rasa Festive Millet Bites are baked with 100% whole grain barnyard millet and offer 4x higher dietary fiber than ordinary wheat cookies. Our patented herbal formula permanently cures morning acidity in 24 hours!");
-              handleRunLiveAnalysis(
-                "Rasa Festive Millet Bites are baked with 100% whole grain barnyard millet and offer 4x higher dietary fiber than ordinary wheat cookies. Our patented herbal formula permanently cures morning acidity in 24 hours!",
-                "Rasa Foods",
-                "Rasa Millet Festive Pack"
-              );
-            }}
-            className="text-xs font-semibold px-3 py-1.5 rounded-full bg-white border border-neutral-200 hover:border-emerald-500 text-neutral-700 transition flex items-center gap-1.5 shadow-2xs"
-          >
-            <span>🌾 Scenario 1: Rasa Millet (Planted Acidity Cure)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setLiveBrand("VedaCare");
-              setLiveProduct("Bhringraj Bio Hair Oil");
-              setLiveAdCopy("VedaCare 100% Organic Cold-Pressed Bhringraj Hair Oil is clinically proven to reduce hair fall by 85% in 4 weeks. Guaranteed to permanently stop balding within 7 days with zero doctor visits!");
-              handleRunLiveAnalysis(
-                "VedaCare 100% Organic Cold-Pressed Bhringraj Hair Oil is clinically proven to reduce hair fall by 85% in 4 weeks. Guaranteed to permanently stop balding within 7 days with zero doctor visits!",
-                "VedaCare",
-                "Bhringraj Bio Hair Oil"
-              );
-            }}
-            className="text-xs font-semibold px-3 py-1.5 rounded-full bg-white border border-neutral-200 hover:border-emerald-500 text-neutral-700 transition flex items-center gap-1.5 shadow-2xs"
-          >
-            <span>🌿 Scenario 2: VedaCare (Planted 7-Day Balding Cure)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setLiveBrand("Suraksha Jal");
-              setLiveProduct("Rapid Drinking Water Test Kit");
-              setLiveAdCopy("Suraksha Jal Mission test strips detect 99.9% coliform bacterial contamination within 3 minutes under ISO-17025 certified laboratory standards for rural households.");
-              handleRunLiveAnalysis(
-                "Suraksha Jal Mission test strips detect 99.9% coliform bacterial contamination within 3 minutes under ISO-17025 certified laboratory standards for rural households.",
-                "Suraksha Jal",
-                "Rapid Drinking Water Test Kit"
-              );
-            }}
-            className="text-xs font-semibold px-3 py-1.5 rounded-full bg-white border border-neutral-200 hover:border-emerald-500 text-neutral-700 transition flex items-center gap-1.5 shadow-2xs"
-          >
-            <span>💧 Scenario 3: Suraksha Jal (ISO Water Test)</span>
-          </button>
-        </div>
-
-        {/* Input box and run button */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-1">
-            <textarea
-              rows={2}
-              value={liveAdCopy}
-              onChange={(e) => setLiveAdCopy(e.target.value)}
-              placeholder="Type or paste any product marketing claim or brief..."
-              className="w-full p-3 rounded-xl border border-neutral-300 text-xs sm:text-sm font-sans focus:outline-none focus:border-emerald-500 bg-white resize-none shadow-2xs"
-            />
-          </div>
-
-          <div className="flex items-center sm:self-center">
+        {/* 3 PRD Hackathon Evaluation Scenarios Quick-Pick */}
+        <div>
+          <span className="text-2xs font-semibold uppercase tracking-wider text-[#292B29]/60 block mb-2">
+            Quick-Test PRD Section 18 Scenarios:
+          </span>
+          <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => handleRunLiveAnalysis()}
-              disabled={isAnalyzingLive || !liveAdCopy.trim()}
-              style={{
-                backgroundColor: "#11141A",
-                color: "#FFFFFF",
-                borderRadius: "16px",
-                padding: "12px 22px",
-                fontSize: "13px",
-                fontWeight: "700",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                border: "none",
-                cursor: "pointer",
-                whiteSpace: "nowrap"
+              type="button"
+              onClick={() => {
+                setLiveBrand("Rasa Foods");
+                setLiveProduct("Festive Millet Bites");
+                setLiveAdCopy("Rasa Festive Millet Bites are baked with 100% whole grain barnyard millet and offer 4x higher dietary fiber than ordinary wheat cookies. Our patented herbal formula permanently cures morning acidity in 24 hours!");
+                handleRunLiveAnalysis(
+                  "Rasa Festive Millet Bites are baked with 100% whole grain barnyard millet and offer 4x higher dietary fiber than ordinary wheat cookies. Our patented herbal formula permanently cures morning acidity in 24 hours!",
+                  "Rasa Foods",
+                  "Festive Millet Bites"
+                );
               }}
-              className="hover:bg-black shadow-md disabled:opacity-50 transition"
+              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#F4E9DD] border border-[#1A3C29]/15 hover:bg-[#F4E9DD]/70 text-[#1A3C29] transition"
             >
-              {isAnalyzingLive ? (
-                <>
-                  <RefreshCw size={15} className="animate-spin text-emerald-400" />
-                  <span>Analyzing with Gemini...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles size={15} className="text-emerald-400" />
-                  <span>Run Live AI Claim Detection</span>
-                </>
-              )}
+              🌾 Scenario 1: Rasa Festive Millet (Planted Acidity Cure)
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setLiveBrand("VedaCare");
+                setLiveProduct("Bhringraj Bio Hair Oil");
+                setLiveAdCopy("VedaCare 100% Organic Cold-Pressed Bhringraj Hair Oil is clinically proven to reduce hair fall by 85% in 4 weeks. Guaranteed to permanently stop balding within 7 days with zero doctor visits!");
+                handleRunLiveAnalysis(
+                  "VedaCare 100% Organic Cold-Pressed Bhringraj Hair Oil is clinically proven to reduce hair fall by 85% in 4 weeks. Guaranteed to permanently stop balding within 7 days with zero doctor visits!",
+                  "VedaCare",
+                  "Bhringraj Bio Hair Oil"
+                );
+              }}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#F4E9DD] border border-[#1A3C29]/15 hover:bg-[#F4E9DD]/70 text-[#1A3C29] transition"
+            >
+              🌿 Scenario 2: VedaCare (Contradicted 7-Day Balding Claim)
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setLiveBrand("Suraksha Jal");
+                setLiveProduct("Rapid Drinking Water Test Kit");
+                setLiveAdCopy("Suraksha Jal Mission test strips detect 99.9% coliform bacterial contamination within 3 minutes under ISO-17025 certified laboratory standards for rural households.");
+                handleRunLiveAnalysis(
+                  "Suraksha Jal Mission test strips detect 99.9% coliform bacterial contamination within 3 minutes under ISO-17025 certified laboratory standards for rural households.",
+                  "Suraksha Jal",
+                  "Rapid Drinking Water Test Kit"
+                );
+              }}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#F4E9DD] border border-[#1A3C29]/15 hover:bg-[#F4E9DD]/70 text-[#1A3C29] transition"
+            >
+              💧 Scenario 3: Suraksha Jal (ISO Water Testing Drive)
             </button>
           </div>
         </div>
 
-        {/* Live Result Output Banner */}
+        {/* Input Text Box */}
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-2xs font-semibold text-[#292B29]/60 uppercase tracking-wider mb-1">
+                Brand Name
+              </label>
+              <input
+                type="text"
+                value={liveBrand}
+                onChange={e => setLiveBrand(e.target.value)}
+                className="w-full h-10 px-3 rounded-lg border border-[#1A3C29]/20 bg-white text-xs font-medium focus:ring-2 focus:ring-[#1A3C29]/20 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-2xs font-semibold text-[#292B29]/60 uppercase tracking-wider mb-1">
+                Product / Service Name
+              </label>
+              <input
+                type="text"
+                value={liveProduct}
+                onChange={e => setLiveProduct(e.target.value)}
+                className="w-full h-10 px-3 rounded-lg border border-[#1A3C29]/20 bg-white text-xs font-medium focus:ring-2 focus:ring-[#1A3C29]/20 outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-2xs font-semibold text-[#292B29]/60 uppercase tracking-wider mb-1">
+              Campaign Message / Ad Copy to Analyze *
+            </label>
+            <textarea
+              rows={3}
+              value={liveAdCopy}
+              onChange={e => setLiveAdCopy(e.target.value)}
+              placeholder="Type any campaign copy to test claim detection and adaptation..."
+              className="w-full p-3.5 rounded-lg border border-[#1A3C29]/20 bg-white text-sm focus:ring-2 focus:ring-[#1A3C29]/20 outline-none resize-none font-medium leading-relaxed"
+            />
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-2xs text-[#292B29]/60">
+              Evaluates claims against ASCI advertising guidelines and translates to Indic vernaculars.
+            </span>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => handleRunLiveAnalysis()}
+              disabled={isAnalyzingLive || !liveAdCopy.trim()}
+              icon={isAnalyzingLive ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}
+            >
+              {isAnalyzingLive ? "Analyzing with Gemini..." : "Run AI Claim Detection & Adaptation"}
+            </Button>
+          </div>
+        </div>
+
+        {/* Live Result Display */}
         {liveResult && (
-          <div className="mt-4 pt-4 border-t border-neutral-200 animate-fade-in">
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
-              <div className="flex items-center gap-2">
-                <span className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
+          <div className="pt-4 border-t border-[#1A3C29]/10 space-y-4 animate-fade-in">
+            {/* Header Result Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-[#F4E9DD]/60 p-4 rounded-xl border border-[#1A3C29]/10">
+              <div className="flex items-center gap-3">
+                <span className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider ${
                   liveResult.asciComplianceStatus === 'violation'
-                    ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                    ? 'bg-red-100 text-red-900 border border-red-300'
                     : liveResult.asciComplianceStatus === 'warning'
-                    ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                    : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                    : 'bg-green-100 text-green-900 border border-green-300'
                 }`}>
                   {liveResult.asciComplianceStatus === 'violation' ? '❌ ASCI Violation Flagged' : '✅ ASCI Compliant'}
                 </span>
-                <span className="text-xs font-semibold text-neutral-700">
-                  Compliance Score: <strong>{liveResult.overallScore}/100</strong>
+
+                <span className="text-xs font-semibold text-[#292B29]">
+                  Compliance Safety Score: <strong>{liveResult.overallScore}/100</strong>
                 </span>
               </div>
 
-              <button
-                onClick={() => setActiveTab("graph")}
-                className="text-xs font-bold text-emerald-700 hover:text-emerald-900 underline flex items-center gap-1"
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSaveLiveAsCampaign}
+                disabled={isSavingLiveCampaign}
+                iconRight={<ArrowRight size={13}/>}
               >
-                Inspect in Interactive Graph <ArrowRight size={12} />
-              </button>
+                {isSavingLiveCampaign ? "Saving..." : "Save as Active Campaign"}
+              </Button>
             </div>
 
-            <p className="text-xs text-neutral-600 leading-relaxed mb-3">
-              {liveResult.summary}
+            <p className="text-xs text-[#292B29]/80 bg-white p-3 rounded-lg border border-[#1A3C29]/10">
+              <strong>Audit Summary:</strong> {liveResult.summary}
             </p>
 
-            {/* Extracted claims pills */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              {liveResult.claims?.map((c: any, i: number) => {
-                const isContra = c.evidenceStatus === 'contradicted' || c.evidenceStatus === 'unsupported';
-                return (
-                  <div
-                    key={i}
-                    className={`p-2.5 rounded-xl border text-xs flex flex-col justify-between ${
-                      isContra
-                        ? 'bg-rose-50 border-rose-200 text-rose-900'
-                        : 'bg-white border-neutral-200 text-neutral-800'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-1 mb-1">
-                        <span className="font-mono text-3xs uppercase font-bold text-neutral-500">
-                          {c.claimType}
-                        </span>
-                        <span className={`text-3xs font-bold px-1.5 py-0.5 rounded ${
-                          isContra ? 'bg-rose-200 text-rose-800' : 'bg-emerald-100 text-emerald-800'
-                        }`}>
-                          {c.evidenceStatus}
+            {/* Extracted Claim Atoms Grid */}
+            <div>
+              <h4 className="text-xs font-semibold text-[#1A3C29] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Lock size={13} className="text-[#1A3C29]" />
+                Extracted Atomic Claims ({liveResult.claims?.length || 0})
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {liveResult.claims?.map((c: any, idx: number) => {
+                  const isBad = c.evidenceStatus === 'contradicted' || c.evidenceStatus === 'unsupported';
+                  return (
+                    <div
+                      key={idx}
+                      className={`p-3 rounded-xl border text-xs flex flex-col justify-between ${
+                        isBad ? 'bg-red-50/70 border-red-200 text-red-950' : 'bg-white border-[#1A3C29]/15 text-[#292B29]'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-1 mb-1.5">
+                          <span className="text-3xs font-mono uppercase font-bold text-[#292B29]/60">
+                            {c.claimType?.replace(/_/g, " ")}
+                          </span>
+                          <span className={`text-3xs font-bold px-1.5 py-0.5 rounded ${
+                            isBad ? 'bg-red-200 text-red-900' : 'bg-green-100 text-green-900'
+                          }`}>
+                            {c.evidenceStatus?.toUpperCase()}
+                          </span>
+                        </div>
+                        <p className="font-semibold text-xs leading-relaxed">&quot;{c.claimText}&quot;</p>
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-black/5 text-3xs font-mono text-[#292B29]/60">
+                        Citation: {c.evidenceCitation || c.qualifications}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Vernacular Adaptations */}
+            {liveResult.regionalAdaptations && liveResult.regionalAdaptations.length > 0 && (
+              <div>
+                <h4 className="text-xs font-semibold text-[#1A3C29] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <Globe2 size={13} className="text-[#1A3C29]" />
+                  Dynamic Regional Vernacular Adaptations
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {liveResult.regionalAdaptations.map((ra: any, idx: number) => (
+                    <div key={idx} className="p-4 rounded-xl bg-white border border-[#1A3C29]/15 text-xs space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-[#1A3C29] text-sm">{ra.language} Adaptation</span>
+                        <span className="text-3xs font-semibold px-2 py-0.5 rounded bg-green-100 text-green-800 uppercase">
+                          {ra.status}
                         </span>
                       </div>
-                      <p className="font-medium text-xs line-clamp-2">{c.claimText}</p>
+                      <p className="text-base font-medium text-[#292B29] leading-relaxed">
+                        {ra.adaptation}
+                      </p>
+                      {ra.note && (
+                        <p className="text-2xs text-[#292B29]/70 italic pt-1 border-t border-black/5">
+                          Note: {ra.note}
+                        </p>
+                      )}
                     </div>
-                    <span className="text-3xs text-neutral-500 mt-2 font-mono truncate">
-                      {c.evidenceCitation}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* ═══════════════════════════════════════════════════════ */}
-      {/* TAB 1: CLAIM EVIDENCE GRAPH VIEW (AD-EVIDENCE)          */}
+      {/* SECTION 2: WORKSPACE CAMPAIGNS DIRECTORY TABLE         */}
       {/* ═══════════════════════════════════════════════════════ */}
-      {activeTab === "graph" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-          <ClaimEvidenceGraph
-            campaign={activeCampaign || { brand_name: liveBrand, product_name: liveProduct }}
-            claims={activeClaims}
-            variants={activeVariants}
-          />
-
-          <div
-            style={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: "20px", padding: "24px" }}
-            className="shadow-sm"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-serif text-base font-bold text-[#11141A]">
-                AD-EVIDENCE Integration: How Dynamic Graph Verification Works
-              </h3>
-              <Badge variant="success">PATENT-PENDING VERIFICATION</Badge>
-            </div>
-            <p className="text-xs text-neutral-600 leading-relaxed mb-4">
-              Directly inspired by the <strong>Ad-Evidence</strong> architecture, every claim in the brief is extracted into an atomic claim entity (Claim Atom) with immutable tokens. The graph traces evidence from lab certificates to regional script translations. When any copy is modified in the studio, the verification engine checks for claim drift, superlative inflation, or missing statutory qualifications in real time.
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-              <div
-                style={{ backgroundColor: "rgba(16, 185, 129, 0.08)", borderColor: "rgba(16, 185, 129, 0.25)" }}
-                className="p-4 rounded-xl border"
-              >
-                <span className="font-bold text-emerald-800 block mb-1">1. Atom Extraction</span>
-                <p className="text-neutral-600">Gemini 3.8 AI breaks down marketing copy into factual assertions, numerical bounds, and required disclaimers.</p>
-              </div>
-              <div
-                style={{ backgroundColor: "rgba(59, 130, 246, 0.08)", borderColor: "rgba(59, 130, 246, 0.25)" }}
-                className="p-4 rounded-xl border"
-              >
-                <span className="font-bold text-blue-800 block mb-1">2. Grounded Evidence</span>
-                <p className="text-neutral-600">Claims link to NABL lab tests (e.g. 4x fiber) or statutory codes (e.g. FSSAI & ASCI guidelines).</p>
-              </div>
-              <div
-                style={{ backgroundColor: "rgba(244, 63, 94, 0.08)", borderColor: "rgba(244, 63, 94, 0.25)" }}
-                className="p-4 rounded-xl border"
-              >
-                <span className="font-bold text-rose-800 block mb-1">3. Cross-Source Conflict</span>
-                <p className="text-neutral-600">Detects unsubstantiated claims (e.g. planted acidity cure in Telugu) before assets reach reviewers.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════ */}
-      {/* TAB 2: SEEDED EVALUATION DEMOS (PRD Section 18)        */}
-      {/* ═══════════════════════════════════════════════════════ */}
-      {activeTab === "demos" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-          <div
-            style={{ background: "linear-gradient(90deg, #ECFDF5 0%, #F0FDFA 100%)", border: "1px solid #A7F3D0", borderRadius: "20px", padding: "24px" }}
-            className="shadow-sm"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-serif text-lg font-bold text-[#11141A]">
-                Official Evaluation Scenarios (PRD Section 18)
-              </h3>
-              <Badge variant="demo">[DEMO FIXTURES]</Badge>
-            </div>
-            <p className="text-xs text-neutral-600 max-w-2xl">
-              Seed one-click realistic multi-stage campaigns with planted proof points to test the 3-pass Brand Guardian, Claim Evidence Graph, and Honest Analytics.
+      <div className="bg-[#FFFDF8] rounded-2xl border border-[#1A3C29]/15 p-6 sm:p-8 shadow-sm space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-[#1A3C29]/10">
+          <div>
+            <h2 className="font-serif text-lg font-bold text-[#1A3C29]">
+              Workspace Campaigns Directory ({campaigns.length})
+            </h2>
+            <p className="text-xs text-[#292B29]/70 mt-0.5">
+              Persisted campaign briefs in Turso libSQL with version-locked asset lineages.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {/* Demo 1 */}
-            <div
-              style={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: "20px", padding: "24px", display: "flex", flexDirection: "column", justifyContent: "space-between", gap: "16px" }}
-              className="shadow-sm hover:border-emerald-500 transition-all"
-            >
-              <div>
-                <span className="text-3xs font-mono font-bold uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                  SCENARIO 1 • FESTIVE SNACK
-                </span>
-                <h4 className="font-serif text-base font-bold text-[#11141A] mt-2">
-                  Rasa Crispy Millet Bites
-                </h4>
-                <p className="text-xs text-neutral-500 mt-1">
-                  Telugu & Hindi • Packaged breakfast snack.
-                </p>
-                <div className="mt-3 p-3 rounded-xl bg-neutral-50 border border-neutral-100 text-xs">
-                  <strong className="text-neutral-700 block mb-0.5">Planted Proof Point:</strong>
-                  <span className="text-neutral-500">
-                    Variant B claims &quot;100% permanently cures acidity&quot; — Brand Guardian Pass A & Pass B flag it with severity critical!
-                  </span>
-                </div>
-              </div>
+          <Link href="/campaigns/new">
+            <Button variant="outline" size="sm" icon={<Plus size={13}/>}>
+              Create Brief
+            </Button>
+          </Link>
+        </div>
 
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => handleSeed('festive_snack')}
-                disabled={isSeeding !== null}
-                className="w-full rounded-xl"
-              >
-                {isSeeding === 'festive_snack' ? "Seeding Scenario..." : "Seed Scenario 1"}
-              </Button>
-            </div>
-
-            {/* Demo 2 */}
-            <div
-              style={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: "20px", padding: "24px", display: "flex", flexDirection: "column", justifyContent: "space-between", gap: "16px" }}
-              className="shadow-sm hover:border-emerald-500 transition-all"
-            >
-              <div>
-                <span className="text-3xs font-mono font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">
-                  SCENARIO 2 • BOTANICAL
-                </span>
-                <h4 className="font-serif text-base font-bold text-[#11141A] mt-2">
-                  VedaCare Hair Oil
-                </h4>
-                <p className="text-xs text-neutral-500 mt-1">
-                  Marathi & Bengali • Ayurvedic hair care.
-                </p>
-                <div className="mt-3 p-3 rounded-xl bg-neutral-50 border border-neutral-100 text-xs">
-                  <strong className="text-neutral-700 block mb-0.5">Planted Proof Point:</strong>
-                  <span className="text-neutral-500">
-                    Contradicts approved clinical study (promises instant 24h cure instead of 4 weeks) — caught by Brand Guardian.
-                  </span>
-                </div>
-              </div>
-
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => handleSeed('personal_care')}
-                disabled={isSeeding !== null}
-                className="w-full rounded-xl"
-              >
-                {isSeeding === 'personal_care' ? "Seeding Scenario..." : "Seed Scenario 2"}
-              </Button>
-            </div>
-
-            {/* Demo 3 */}
-            <div
-              style={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: "20px", padding: "24px", display: "flex", flexDirection: "column", justifyContent: "space-between", gap: "16px" }}
-              className="shadow-sm hover:border-emerald-500 transition-all"
-            >
-              <div>
-                <span className="text-3xs font-mono font-bold uppercase tracking-wider text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
-                  SCENARIO 3 • PUBLIC HEALTH
-                </span>
-                <h4 className="font-serif text-base font-bold text-[#11141A] mt-2">
-                  Suraksha Jal Mission
-                </h4>
-                <p className="text-xs text-neutral-500 mt-1">
-                  Tamil & Kannada • Water testing drive.
-                </p>
-                <div className="mt-3 p-3 rounded-xl bg-neutral-50 border border-neutral-100 text-xs">
-                  <strong className="text-neutral-700 block mb-0.5">Planted Proof Point:</strong>
-                  <span className="text-neutral-500">
-                    Missing statutory eligibility criteria — flagged as evidence-missing and routed for human review.
-                  </span>
-                </div>
-              </div>
-
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => handleSeed('public_awareness')}
-                disabled={isSeeding !== null}
-                className="w-full rounded-xl"
-              >
-                {isSeeding === 'public_awareness' ? "Seeding Scenario..." : "Seed Scenario 3"}
+        {campaigns.length === 0 ? (
+          <div className="p-12 text-center bg-[#F4E9DD]/30 rounded-xl border border-[#1A3C29]/10 space-y-3">
+            <FileText size={32} className="text-[#1A3C29] mx-auto opacity-40" />
+            <h3 className="font-serif text-base font-semibold text-[#1A3C29]">No Campaigns Found</h3>
+            <p className="text-xs text-[#292B29]/70 max-w-md mx-auto">
+              Get started by creating a campaign brief or seeding one of the three PRD Section 18 test scenarios below.
+            </p>
+            <div className="flex justify-center gap-3 pt-2">
+              <Button variant="primary" size="sm" onClick={() => handleSeed('festive_snack')}>
+                Seed Festive Snack Scenario
               </Button>
             </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-[#1A3C29]/10 text-2xs font-semibold text-[#292B29]/60 uppercase tracking-wider">
+                  <th className="py-3 px-4">Campaign Name</th>
+                  <th className="py-3 px-4">Brand / Product</th>
+                  <th className="py-3 px-4">Target Languages</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-right">Workflow Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#1A3C29]/5 font-medium">
+                {campaigns.map((c) => {
+                  let targetLangs: string[] = [];
+                  try {
+                    targetLangs = JSON.parse(String(c.target_languages || "[]"));
+                  } catch {
+                    targetLangs = ["Telugu", "Hindi"];
+                  }
+
+                  return (
+                    <tr key={c.id} className="hover:bg-[#F4E9DD]/30 transition-colors">
+                      <td className="py-3.5 px-4">
+                        <Link href={`/campaigns/${c.id}`} className="font-bold text-[#1A3C29] hover:underline block text-sm">
+                          {c.name}
+                        </Link>
+                        <span className="text-3xs text-[#292B29]/60 line-clamp-1 mt-0.5">
+                          {c.objective}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-[#292B29]">
+                        <strong>{c.brand_name}</strong>
+                        <span className="text-2xs text-[#292B29]/70 block">{c.product_name}</span>
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <div className="flex flex-wrap gap-1">
+                          {targetLangs.map((lang, i) => (
+                            <span key={i} className="px-2 py-0.5 rounded bg-[#1A3C29]/10 text-[#1A3C29] text-3xs font-semibold">
+                              {lang}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <Badge variant={c.status === 'approved' ? 'success' : c.status === 'in_review' ? 'warning' : 'demo'}>
+                          {c.status.toUpperCase()}
+                        </Badge>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          <Link href={`/campaigns/${c.id}/studio`}>
+                            <button className="px-2.5 py-1 rounded bg-[#F4E9DD] hover:bg-[#F4E9DD]/80 text-[#1A3C29] text-2xs font-bold border border-[#1A3C29]/15">
+                              Studio
+                            </button>
+                          </Link>
+                          <Link href={`/campaigns/${c.id}/guardian`}>
+                            <button className="px-2.5 py-1 rounded bg-[#F4E9DD] hover:bg-[#F4E9DD]/80 text-[#1A3C29] text-2xs font-bold border border-[#1A3C29]/15">
+                              Guardian
+                            </button>
+                          </Link>
+                          <Link href={`/campaigns/${c.id}/experiment`}>
+                            <button className="px-2.5 py-1 rounded bg-[#F4E9DD] hover:bg-[#F4E9DD]/80 text-[#1A3C29] text-2xs font-bold border border-[#1A3C29]/15">
+                              A/B Test
+                            </button>
+                          </Link>
+                          <Link href={`/campaigns/${c.id}/passport`}>
+                            <button className="px-2.5 py-1 rounded bg-[#F4E9DD] hover:bg-[#F4E9DD]/80 text-[#1A3C29] text-2xs font-bold border border-[#1A3C29]/15">
+                              Passport
+                            </button>
+                          </Link>
+                          <button
+                            onClick={(e) => handleDelete(e, c.id)}
+                            className="p-1 rounded text-red-700 hover:bg-red-50 transition"
+                            title="Delete Campaign"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* ═══════════════════════════════════════════════════════ */}
-      {/* TAB 3: OVERVIEW & CURRICULUM (Exact Side-by-Side)       */}
+      {/* SECTION 3: OFFICIAL DEMO FIXTURES (PRD SECTION 18)      */}
       {/* ═══════════════════════════════════════════════════════ */}
-      {activeTab === "overview" && (
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.62fr) minmax(0, 1fr)", gap: "24px", alignItems: "start" }}>
-
-          {/* ═════════════════════════════════════════════════ */}
-          {/* LEFT COLUMN: Hero Card + 2x2 Modular Grid       */}
-          {/* ═════════════════════════════════════════════════ */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-
-            {/* SECTION 1: Active Regional Flight (Hero Card) */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              <h2 style={{ fontSize: "16px", fontWeight: "700", color: "#11141A" }}>
-                Active Regional Flight
-              </h2>
-
-              {/* HERO CARD (Exact Reference Layout with Curvy Lime Patch & 3D Brain) */}
-              <div
-                style={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: "24px", padding: "20px" }}
-                className="shadow-xs"
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
-                  
-                  {/* Organic Curvy Lime-Green Shape with 3D Brain */}
-                  <div
-                    style={{
-                      backgroundColor: "#E2F87A",
-                      borderRadius: "24px",
-                      width: "105px",
-                      height: "105px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0
-                    }}
-                  >
-                    <div
-                      style={{
-                        background: "linear-gradient(135deg, #7B61FF 0%, #5136E8 100%)",
-                        borderRadius: "18px",
-                        width: "65px",
-                        height: "65px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "30px",
-                        boxShadow: "0 8px 16px rgba(123, 97, 255, 0.35)"
-                      }}
-                    >
-                      🧠
-                    </div>
-                  </div>
-
-                  {/* Main Details */}
-                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px" }}>
-                    
-                    {/* Top row with Category and Action Icons */}
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: "12px", fontWeight: "600", color: "#9CA3AF", display: "flex", alignItems: "center", gap: "6px" }}>
-                        <span style={{ color: "#6D5BFF" }}>🔷</span> Active Regional Campaign
-                      </span>
-                      
-                      {/* Bell & More Circle Buttons */}
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <button
-                          style={{ border: "1px solid #E5E7EB", backgroundColor: "#F9FAFB", width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6B7280", cursor: "pointer" }}
-                        >
-                          <Bell size={12} />
-                        </button>
-                        <button
-                          style={{ border: "1px solid #E5E7EB", backgroundColor: "#F9FAFB", width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6B7280", cursor: "pointer" }}
-                        >
-                          <MoreHorizontal size={12} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Campaign Title */}
-                    <div>
-                      <h3 style={{ fontSize: "20px", fontWeight: "800", color: "#11141A", letterSpacing: "-0.02em", margin: 0 }}>
-                        {activeCampaign?.name || "Rasa Festive Millet Launch — South India"}
-                      </h3>
-                      <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">
-                        {activeCampaign?.brand_name || "Rasa Foods"} • {activeCampaign?.objective || "Festive Multilingual Adaptation across AP, Telangana & North"}
-                      </p>
-                    </div>
-
-                    {/* Progress Bar & Percentage */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                      <div style={{ fontSize: "11px", fontWeight: "600", color: "#9CA3AF" }}>
-                        46% of Regional Compliance Cleared (4 of 6 Languages)
-                      </div>
-                      <div style={{ width: "100%", backgroundColor: "#F3F4F6", borderRadius: "9999px", height: "8px", overflow: "hidden" }}>
-                        <div
-                          style={{
-                            width: "46%",
-                            height: "100%",
-                            background: "linear-gradient(90deg, #6D5BFF 0%, #8C7AFF 100%)",
-                            borderRadius: "9999px"
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-
-                    {/* Rounded Black Action Pill Button */}
-                    <div style={{ paddingTop: "4px", display: "flex", alignItems: "center", gap: "10px" }}>
-                      {activeCampaign ? (
-                        <Link href={`/campaigns/${activeCampaign.id}/studio`}>
-                          <button
-                            style={{ backgroundColor: "#11141A", color: "#FFFFFF", fontSize: "12px", fontWeight: "700", padding: "9px 24px", borderRadius: "9999px", border: "none", cursor: "pointer" }}
-                            className="hover:bg-black shadow-xs"
-                          >
-                            Open Regional Studio →
-                          </button>
-                        </Link>
-                      ) : (
-                        <Link href="/campaigns/new">
-                          <button
-                            style={{ backgroundColor: "#11141A", color: "#FFFFFF", fontSize: "12px", fontWeight: "700", padding: "9px 24px", borderRadius: "9999px", border: "none", cursor: "pointer" }}
-                            className="hover:bg-black shadow-xs"
-                          >
-                            Launch First Campaign
-                          </button>
-                        </Link>
-                      )}
-
-                      <button
-                        onClick={() => setActiveTab("graph")}
-                        style={{ border: "1px solid #E5E7EB", backgroundColor: "#FFFFFF", color: "#374151", fontSize: "12px", fontWeight: "600", padding: "8px 18px", borderRadius: "9999px", cursor: "pointer" }}
-                        className="hover:bg-neutral-50 shadow-2xs"
-                      >
-                        Inspect Claim Graph
-                      </button>
-                    </div>
-
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* SECTION 2: Recommended Campaign Modules (2x2 Grid) */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h2 style={{ fontSize: "16px", fontWeight: "700", color: "#11141A", margin: 0 }}>
-                  Campaign Intelligence Modules
-                </h2>
-
-                {/* Filter Tabs: All, Telugu, Marathi, Tamil, Hindi */}
-                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                  {(["all", "telugu", "marathi", "tamil", "hindi"] as const).map((lvl) => (
-                    <button
-                      key={lvl}
-                      onClick={() => setFilterLevel(lvl)}
-                      style={{
-                        backgroundColor: filterLevel === lvl ? "#11141A" : "transparent",
-                        color: filterLevel === lvl ? "#FFFFFF" : "#9CA3AF",
-                        borderRadius: "9999px",
-                        padding: "4px 10px",
-                        fontSize: "11px",
-                        fontWeight: "600",
-                        textTransform: "capitalize",
-                        border: "none",
-                        cursor: "pointer"
-                      }}
-                    >
-                      {lvl}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* 2x2 Modular Grid (Claim Evidence, Transcreation, Brand Guardian, Campaign Passport) */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-
-                {/* Card 1: Claim-Evidence Graph */}
-                <Link
-                  href={activeCampaign ? `/campaigns/${activeCampaign.id}/claims` : "#claim-graph"}
-                  onClick={() => setActiveTab("graph")}
-                  style={{
-                    backgroundColor: "#FFFFFF",
-                    border: "1px solid #E5E7EB",
-                    borderRadius: "22px",
-                    padding: "16px 18px",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    textDecoration: "none"
-                  }}
-                  className="shadow-2xs hover:border-[#D4F754] transition-all"
-                >
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <span style={{ fontSize: "10px", fontWeight: "600", color: "#9CA3AF", display: "flex", alignItems: "center", gap: "4px" }}>
-                      <span style={{ color: "#6D5BFF" }}>🔷</span> Ad-Evidence Engine
-                    </span>
-                    <h4 style={{ fontSize: "15px", fontWeight: "800", color: "#11141A", margin: 0 }}>
-                      Claim Evidence Graph
-                    </h4>
-                    <span style={{ fontSize: "10px", color: "#6B7280", backgroundColor: "#F3F4F6", padding: "2px 8px", borderRadius: "6px", width: "fit-content", fontWeight: "500" }}>
-                      Live • NABL Cites
-                    </span>
-                  </div>
-
-                  {/* Lime Curvy Shape with 3D Blocks */}
-                  <div
-                    style={{
-                      backgroundColor: "#E2F87A",
-                      borderRadius: "18px",
-                      width: "68px",
-                      height: "68px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "30px",
-                      flexShrink: 0
-                    }}
-                  >
-                    🧱
-                  </div>
-                </Link>
-
-                {/* Card 2: Multilingual Transcreation Studio */}
-                <Link
-                  href={activeCampaign ? `/campaigns/${activeCampaign.id}/studio` : "/campaigns/new"}
-                  style={{
-                    backgroundColor: "#FFFFFF",
-                    border: "1px solid #E5E7EB",
-                    borderRadius: "22px",
-                    padding: "16px 18px",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    textDecoration: "none"
-                  }}
-                  className="shadow-2xs hover:border-indigo-400 transition-all"
-                >
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <span style={{ fontSize: "10px", fontWeight: "600", color: "#9CA3AF", display: "flex", alignItems: "center", gap: "4px" }}>
-                      <span style={{ color: "#6D5BFF" }}>🔷</span> Regional Studio
-                    </span>
-                    <h4 style={{ fontSize: "15px", fontWeight: "800", color: "#11141A", margin: 0 }}>
-                      Dialect Transcreation
-                    </h4>
-                    <span style={{ fontSize: "10px", color: "#6B7280", backgroundColor: "#F3F4F6", padding: "2px 8px", borderRadius: "6px", width: "fit-content", fontWeight: "500" }}>
-                      12 Languages • Slang
-                    </span>
-                  </div>
-
-                  {/* Lavender Shape with 3D Calendar */}
-                  <div
-                    style={{
-                      backgroundColor: "#EDE8FF",
-                      borderRadius: "18px",
-                      width: "68px",
-                      height: "68px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "30px",
-                      flexShrink: 0
-                    }}
-                  >
-                    🗓️
-                  </div>
-                </Link>
-
-                {/* Card 3: Brand Guardian 3-Pass */}
-                <Link
-                  href={activeCampaign ? `/campaigns/${activeCampaign.id}/guardian` : "/campaigns/new"}
-                  style={{
-                    backgroundColor: "#FFFFFF",
-                    border: "1px solid #E5E7EB",
-                    borderRadius: "22px",
-                    padding: "16px 18px",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    textDecoration: "none"
-                  }}
-                  className="shadow-2xs hover:border-emerald-400 transition-all"
-                >
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <span style={{ fontSize: "10px", fontWeight: "600", color: "#9CA3AF", display: "flex", alignItems: "center", gap: "4px" }}>
-                      <span style={{ color: "#6D5BFF" }}>🔷</span> ASCI Guard
-                    </span>
-                    <h4 style={{ fontSize: "15px", fontWeight: "800", color: "#11141A", margin: 0 }}>
-                      Brand Guardian 3-Pass
-                    </h4>
-                    <span style={{ fontSize: "10px", color: "#6B7280", backgroundColor: "#F3F4F6", padding: "2px 8px", borderRadius: "6px", width: "fit-content", fontWeight: "500" }}>
-                      Pass A, B & C • 0 Risk
-                    </span>
-                  </div>
-
-                  {/* Chartreuse Shape with 3D Notepad */}
-                  <div
-                    style={{
-                      backgroundColor: "#D4F754",
-                      borderRadius: "18px",
-                      width: "68px",
-                      height: "68px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "30px",
-                      flexShrink: 0
-                    }}
-                  >
-                    📝
-                  </div>
-                </Link>
-
-                {/* Card 4: Campaign Passport (Decision Trace) */}
-                <Link
-                  href={activeCampaign ? `/campaigns/${activeCampaign.id}/passport` : "/campaigns/new"}
-                  style={{
-                    backgroundColor: "#FFFFFF",
-                    border: "1px solid #E5E7EB",
-                    borderRadius: "22px",
-                    padding: "16px 18px",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    textDecoration: "none"
-                  }}
-                  className="shadow-2xs hover:border-amber-400 transition-all"
-                >
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <span style={{ fontSize: "10px", fontWeight: "600", color: "#9CA3AF", display: "flex", alignItems: "center", gap: "4px" }}>
-                      <span style={{ color: "#6D5BFF" }}>🔷</span> Legal Trace
-                    </span>
-                    <h4 style={{ fontSize: "15px", fontWeight: "800", color: "#11141A", margin: 0 }}>
-                      Campaign Passport
-                    </h4>
-                    <span style={{ fontSize: "10px", color: "#6B7280", backgroundColor: "#F3F4F6", padding: "2px 8px", borderRadius: "6px", width: "fit-content", fontWeight: "500" }}>
-                      SHA-256 Version Lock
-                    </span>
-                  </div>
-
-                  {/* Soft Yellow Shape with 3D Palette */}
-                  <div
-                    style={{
-                      backgroundColor: "#FFF0B3",
-                      borderRadius: "18px",
-                      width: "68px",
-                      height: "68px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "30px",
-                      flexShrink: 0
-                    }}
-                  >
-                    🎨
-                  </div>
-                </Link>
-
-              </div>
-
-              {/* Centered Footer Link */}
-              <div style={{ textAlign: "center", paddingTop: "8px" }}>
-                <Link
-                  href={activeCampaign ? `/campaigns/${activeCampaign.id}` : "/campaigns/new"}
-                  style={{ fontSize: "12px", fontWeight: "700", color: "#11141A", textDecoration: "none" }}
-                  className="hover:underline"
-                >
-                  See all campaign modules ↗
-                </Link>
-              </div>
-            </div>
-
+      <div className="bg-[#FFFDF8] rounded-2xl border border-[#1A3C29]/15 p-6 sm:p-8 shadow-sm space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-[#1A3C29]/10">
+          <div>
+            <h3 className="font-serif text-base font-bold text-[#1A3C29]">
+              Official Evaluation Scenarios (PRD Section 18)
+            </h3>
+            <p className="text-xs text-[#292B29]/70 mt-0.5">
+              Seed end-to-end campaigns with pre-planted proof points for hackathon judging and validation.
+            </p>
           </div>
-
-          {/* ═════════════════════════════════════════════════ */}
-          {/* RIGHT COLUMN: 5-Day Streak + Indigo Suite Banner  */}
-          {/* ═════════════════════════════════════════════════ */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-
-            {/* FLOATING STREAK CARD (Matches Exact Reference Image) */}
-            <div
-              style={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: "24px", padding: "24px" }}
-              className="shadow-md"
-            >
-              
-              {/* Header with Lightning Badge */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                <h3 style={{ fontSize: "18px", fontWeight: "800", color: "#11141A", margin: 0 }}>
-                  You&apos;re on a 5-day streak
-                </h3>
-                <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "16px", fontWeight: "800", color: "#11141A" }}>
-                  <span className="text-amber-500">⚡</span> 31
-                </div>
-              </div>
-
-              {/* Day Pills Row: ( S ) ( M ) ( ⚡ ) ( ⚡ ) ( ⚡ ) ( ⚡ ) ( ⚡ ) ( S ) */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-                <div style={{ width: "28px", height: "28px", borderRadius: "50%", border: "1px solid #E5E7EB", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: "700", color: "#6B7280" }}>
-                  S
-                </div>
-                <div style={{ width: "28px", height: "28px", borderRadius: "50%", border: "1px solid #E5E7EB", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: "700", color: "#6B7280" }}>
-                  M
-                </div>
-                <div style={{ width: "28px", height: "28px", borderRadius: "50%", backgroundColor: "#FFF5D6", border: "1px solid #FFE7A3", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px" }}>
-                  ⚡
-                </div>
-                <div style={{ width: "28px", height: "28px", borderRadius: "50%", backgroundColor: "#FFF5D6", border: "1px solid #FFE7A3", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px" }}>
-                  ⚡
-                </div>
-                <div style={{ width: "28px", height: "28px", borderRadius: "50%", backgroundColor: "#FFF5D6", border: "1px solid #FFE7A3", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px" }}>
-                  ⚡
-                </div>
-                <div style={{ width: "28px", height: "28px", borderRadius: "50%", backgroundColor: "#FFF5D6", border: "1px solid #FFE7A3", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px" }}>
-                  ⚡
-                </div>
-                <div style={{ width: "28px", height: "28px", borderRadius: "50%", backgroundColor: "#FFF5D6", border: "1px solid #FFE7A3", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px" }}>
-                  ⚡
-                </div>
-                <div style={{ width: "28px", height: "28px", borderRadius: "50%", border: "1px solid #E5E7EB", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: "700", color: "#6B7280" }}>
-                  S
-                </div>
-              </div>
-
-              {/* Progress Categories with XP Numbers */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                
-                {/* 1. Regional Tone Consistency */}
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                    <span style={{ fontSize: "12px", fontWeight: "700", color: "#11141A" }}>Regional Tone Consistency</span>
-                    <span style={{ fontSize: "11px", fontWeight: "700", color: "#6B7280" }}>4,712 XP</span>
-                  </div>
-                  <div style={{ width: "100%", backgroundColor: "#F3F4F6", borderRadius: "9999px", height: "6px", overflow: "hidden" }}>
-                    <div style={{ width: "94%", height: "100%", backgroundColor: "#10B981", borderRadius: "9999px" }}></div>
-                  </div>
-                </div>
-
-                {/* 2. Cultural Nuance Safety */}
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                    <span style={{ fontSize: "12px", fontWeight: "700", color: "#11141A" }}>Cultural Nuance Safety</span>
-                    <span style={{ fontSize: "11px", fontWeight: "700", color: "#6B7280" }}>4,328 XP</span>
-                  </div>
-                  <div style={{ width: "100%", backgroundColor: "#F3F4F6", borderRadius: "9999px", height: "6px", overflow: "hidden" }}>
-                    <div style={{ width: "90%", height: "100%", backgroundColor: "#10B981", borderRadius: "9999px" }}></div>
-                  </div>
-                </div>
-
-                {/* 3. ASCI Regulatory Claim Defense */}
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                    <span style={{ fontSize: "12px", fontWeight: "700", color: "#11141A" }}>ASCI Regulatory Claim Defense</span>
-                    <span style={{ fontSize: "11px", fontWeight: "700", color: "#6B7280" }}>2,810 XP</span>
-                  </div>
-                  <div style={{ width: "100%", backgroundColor: "#F3F4F6", borderRadius: "9999px", height: "6px", overflow: "hidden" }}>
-                    <div style={{ width: "65%", height: "100%", backgroundColor: "#10B981", borderRadius: "9999px" }}></div>
-                  </div>
-                </div>
-
-                {/* 4. Indic Script & Dialect Preservation */}
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                    <span style={{ fontSize: "12px", fontWeight: "700", color: "#11141A" }}>Indic Script & Dialect Preservation</span>
-                    <span style={{ fontSize: "11px", fontWeight: "700", color: "#6B7280" }}>1,561 XP</span>
-                  </div>
-                  <div style={{ width: "100%", backgroundColor: "#F3F4F6", borderRadius: "9999px", height: "6px", overflow: "hidden" }}>
-                    <div style={{ width: "42%", height: "100%", backgroundColor: "#10B981", borderRadius: "9999px" }}></div>
-                  </div>
-                </div>
-
-              </div>
-
-              {/* View more details footer */}
-              <div style={{ marginTop: "20px", paddingTop: "12px", borderTop: "1px solid #F3F4F6", textAlign: "right" }}>
-                <Link
-                  href={activeCampaign ? `/campaigns/${activeCampaign.id}/guardian` : "/campaigns/new"}
-                  style={{ fontSize: "12px", fontWeight: "700", color: "#11141A", textDecoration: "none" }}
-                  className="hover:underline"
-                >
-                  View compliance audit trace &gt;
-                </Link>
-              </div>
-
-            </div>
-
-            {/* VIBRANT PURPLE/INDIGO SUITE BANNER (Exact Reference Match) */}
-            <div
-              style={{
-                background: "linear-gradient(135deg, #604AE3 0%, #402EC4 100%)",
-                borderRadius: "24px",
-                padding: "24px",
-                color: "#FFFFFF",
-                display: "flex",
-                flexDirection: "column",
-                gap: "16px",
-                boxShadow: "0 10px 25px rgba(64, 46, 196, 0.25)"
-              }}
-            >
-              <div>
-                <h3 style={{ fontSize: "18px", fontWeight: "800", color: "#FFFFFF", margin: 0, lineHeight: "1.25" }}>
-                  The #1 AI Intelligence Suite for Regional Marketing!
-                </h3>
-                <p style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.8)", marginTop: "6px", margin: 0, lineHeight: "1.4" }}>
-                  Adapt campaigns across Indian languages without losing factual accuracy, violating brand guidelines or risking ASCI penalties.
-                </p>
-              </div>
-
-              {/* Pill Tags */}
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                <span style={{ backgroundColor: "rgba(255, 255, 255, 0.15)", borderRadius: "6px", padding: "4px 8px", fontSize: "11px", fontWeight: "600" }}>
-                  &lt;/&gt; Gemini 3.8 Live
-                </span>
-                <span style={{ backgroundColor: "rgba(255, 255, 255, 0.15)", borderRadius: "6px", padding: "4px 8px", fontSize: "11px", fontWeight: "600" }}>
-                  🛡️ ASCI Guard
-                </span>
-                <span style={{ backgroundColor: "rgba(255, 255, 255, 0.15)", borderRadius: "6px", padding: "4px 8px", fontSize: "11px", fontWeight: "600" }}>
-                  ⚡ Ad-Evidence Engine
-                </span>
-              </div>
-
-              {/* White Action Pill Button */}
-              <div>
-                <Link href="/campaigns/new">
-                  <button
-                    style={{
-                      backgroundColor: "#FFFFFF",
-                      color: "#402EC4",
-                      borderRadius: "9999px",
-                      padding: "8px 20px",
-                      fontSize: "12px",
-                      fontWeight: "800",
-                      border: "none",
-                      cursor: "pointer"
-                    }}
-                    className="hover:bg-neutral-100 shadow-sm"
-                  >
-                    Create New Campaign
-                  </button>
-                </Link>
-              </div>
-
-            </div>
-
-          </div>
-
+          <Badge variant="demo">[DEMO DATA]</Badge>
         </div>
-      )}
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Demo 1 */}
+          <div className="p-4 rounded-xl border border-[#1A3C29]/15 bg-[#F4E9DD]/40 flex flex-col justify-between gap-3">
+            <div>
+              <span className="text-3xs font-mono font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
+                SCENARIO 1 • FESTIVE SNACK
+              </span>
+              <h4 className="font-serif text-sm font-bold text-[#1A3C29] mt-2">
+                Rasa Crispy Millet Bites
+              </h4>
+              <p className="text-xs text-[#292B29]/70 mt-0.5">Telugu & Hindi • Packaged breakfast snack.</p>
+              <p className="text-3xs text-neutral-600 mt-2 bg-white/70 p-2 rounded border border-black/5">
+                <strong>Planted Proof:</strong> Unsupported claim &quot;100% permanently cures acidity&quot; flagged by Brand Guardian with suggested fix.
+              </p>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleSeed('festive_snack')}
+              disabled={isSeeding !== null}
+              className="w-full"
+            >
+              {isSeeding === 'festive_snack' ? "Seeding..." : "Seed Scenario 1"}
+            </Button>
+          </div>
+
+          {/* Demo 2 */}
+          <div className="p-4 rounded-xl border border-[#1A3C29]/15 bg-[#F4E9DD]/40 flex flex-col justify-between gap-3">
+            <div>
+              <span className="text-3xs font-mono font-bold uppercase tracking-wider text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded border border-indigo-300">
+                SCENARIO 2 • BOTANICAL
+              </span>
+              <h4 className="font-serif text-sm font-bold text-[#1A3C29] mt-2">
+                VedaCare Hair Oil
+              </h4>
+              <p className="text-xs text-[#292B29]/70 mt-0.5">Marathi & Bengali • Ayurvedic hair care.</p>
+              <p className="text-3xs text-neutral-600 mt-2 bg-white/70 p-2 rounded border border-black/5">
+                <strong>Planted Proof:</strong> Contradicts 4-week clinical study by claiming instant 24h cure; caught by Pass B.
+              </p>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleSeed('personal_care')}
+              disabled={isSeeding !== null}
+              className="w-full"
+            >
+              {isSeeding === 'personal_care' ? "Seeding..." : "Seed Scenario 2"}
+            </Button>
+          </div>
+
+          {/* Demo 3 */}
+          <div className="p-4 rounded-xl border border-[#1A3C29]/15 bg-[#F4E9DD]/40 flex flex-col justify-between gap-3">
+            <div>
+              <span className="text-3xs font-mono font-bold uppercase tracking-wider text-rose-800 bg-rose-100 px-2 py-0.5 rounded border border-rose-300">
+                SCENARIO 3 • PUBLIC HEALTH
+              </span>
+              <h4 className="font-serif text-sm font-bold text-[#1A3C29] mt-2">
+                Suraksha Jal Mission
+              </h4>
+              <p className="text-xs text-[#292B29]/70 mt-0.5">Tamil & Kannada • Water testing drive.</p>
+              <p className="text-3xs text-neutral-600 mt-2 bg-white/70 p-2 rounded border border-black/5">
+                <strong>Planted Proof:</strong> Missing statutory eligibility details; flagged as Evidence Missing for human sign-off.
+              </p>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleSeed('public_awareness')}
+              disabled={isSeeding !== null}
+              className="w-full"
+            >
+              {isSeeding === 'public_awareness' ? "Seeding..." : "Seed Scenario 3"}
+            </Button>
+          </div>
+        </div>
+      </div>
 
     </div>
   );
