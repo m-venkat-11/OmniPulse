@@ -9,7 +9,7 @@ import {
   Award, Layers, Trash2, Bell, MoreHorizontal, ArrowRight,
   RefreshCw, Check, XCircle, Camera, FileCheck2, Users,
   Sliders, Search, ExternalLink, HelpCircle, Eye, Copy,
-  CheckCheck, Share2, Wand2, Key
+  CheckCheck, Share2, Wand2, Key, Palette
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -20,6 +20,7 @@ import {
 } from "@/app/actions";
 import { ClaimEvidenceGraph } from "@/components/graph/ClaimEvidenceGraph";
 import { matchDynamicCreators, CreatorProfile } from "@/lib/creators";
+import { AdPosterStudio } from "@/components/poster/AdPosterStudio";
 
 export default function DashboardOverviewPage() {
   const [mounted, setMounted] = useState(false);
@@ -34,7 +35,7 @@ export default function DashboardOverviewPage() {
   const [isSeeding, setIsSeeding] = useState<string | null>(null);
 
   // Tabs
-  const [activeTab, setActiveTab] = useState<"overview" | "ad-evidence" | "graph" | "creators" | "demos">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "ad-evidence" | "posters" | "graph" | "creators" | "demos">("overview");
 
   // Filter chips for modular cards
   const [filterLevel, setFilterLevel] = useState<"all" | "telugu" | "marathi" | "tamil" | "hindi">("all");
@@ -80,7 +81,7 @@ export default function DashboardOverviewPage() {
   const searchParams = useSearchParams();
 
   // Switch tab and sync with top navigation
-  const switchTab = (tab: "overview" | "ad-evidence" | "graph" | "creators" | "demos") => {
+  const switchTab = (tab: "overview" | "ad-evidence" | "posters" | "graph" | "creators" | "demos") => {
     setActiveTab(tab);
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("switch-dashboard-tab", { detail: { tab } }));
@@ -101,13 +102,13 @@ export default function DashboardOverviewPage() {
 
     // Listen to query params
     const tabParam = searchParams?.get("tab");
-    if (tabParam && ["overview", "ad-evidence", "graph", "creators", "demos"].includes(tabParam)) {
+    if (tabParam && ["overview", "ad-evidence", "posters", "graph", "creators", "demos"].includes(tabParam)) {
       setActiveTab(tabParam as any);
     }
 
     // Listen to window tab switch events from TopNav
     const handleSwitch = (e: any) => {
-      if (e.detail?.tab && ["overview", "ad-evidence", "graph", "creators", "demos"].includes(e.detail.tab)) {
+      if (e.detail?.tab && ["overview", "ad-evidence", "posters", "graph", "creators", "demos"].includes(e.detail.tab)) {
         setActiveTab(e.detail.tab);
       }
     };
@@ -334,7 +335,7 @@ export default function DashboardOverviewPage() {
         matchedCreators: creators,
         dualAiStatus: {
           geminiActive: true,
-          geminiModel: "gemini-2.0-flash",
+          geminiModel: "gemini-3.8-flash",
           sarvamActive: typeof window !== "undefined" && !!(localStorage.getItem("SARVAM_API_KEY") || sarvamKey),
           orchestrationNote: "Preset Demo Mode • Click 'Verify Ad-Evidence' to run real Gemini AI audit"
         }
@@ -386,7 +387,7 @@ export default function DashboardOverviewPage() {
         matchedCreators: creators,
         dualAiStatus: {
           geminiActive: true,
-          geminiModel: "gemini-2.0-flash",
+          geminiModel: "gemini-3.8-flash",
           sarvamActive: typeof window !== "undefined" && !!(localStorage.getItem("SARVAM_API_KEY") || sarvamKey),
           orchestrationNote: "Preset Demo Mode • Click 'Verify Ad-Evidence' to run real Gemini AI audit"
         }
@@ -438,7 +439,7 @@ export default function DashboardOverviewPage() {
         matchedCreators: creators,
         dualAiStatus: {
           geminiActive: true,
-          geminiModel: "gemini-2.0-flash",
+          geminiModel: "gemini-3.8-flash",
           sarvamActive: typeof window !== "undefined" && !!(localStorage.getItem("SARVAM_API_KEY") || sarvamKey),
           orchestrationNote: "Preset Demo Mode • Click 'Verify Ad-Evidence' to run real Gemini AI audit"
         }
@@ -589,6 +590,26 @@ export default function DashboardOverviewPage() {
           >
             <Sparkles size={13} className="text-emerald-500" />
             Ad-Evidence Studio & Photo Verification
+          </button>
+
+          <button
+            onClick={() => switchTab("posters")}
+            style={{
+              backgroundColor: activeTab === "posters" ? "#11141A" : "transparent",
+              color: activeTab === "posters" ? "#FFFFFF" : "#6B7280",
+              borderRadius: "9999px",
+              padding: "8px 16px",
+              fontSize: "12px",
+              fontWeight: "700",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              border: "none",
+              cursor: "pointer"
+            }}
+          >
+            <Palette size={13} className="text-amber-500" />
+            AI Ad Poster Studio
           </button>
 
           <button
@@ -1053,6 +1074,14 @@ export default function DashboardOverviewPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => switchTab("posters")}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-extrabold bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-sm flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Palette size={13} />
+                    Generate Ad Poster
+                  </button>
                   <Button
                     variant="primary"
                     size="sm"
@@ -1351,6 +1380,26 @@ export default function DashboardOverviewPage() {
           )}
 
         </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* TAB: AI AD POSTER & CREATIVE STUDIO                     */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {activeTab === "posters" && (
+        <AdPosterStudio
+          initialBrand={liveBrand}
+          initialProduct={liveProduct}
+          initialCategory={liveCategory}
+          initialLanguage={liveLanguage}
+          initialRegion={liveRegion}
+          initialHeadline={liveAdCopy}
+          initialTeluguHeadline={
+            liveResult?.regionalAdaptations?.[0]?.adaptation ||
+            "శ్రీ మిల్లెట్స్: ప్రతి ఉదయం పోషకమైన, క్రిస్పీ దోసలతో మీ కుటుంబానికి అసలైన ఆరోగ్యం!"
+          }
+          initialClaims={(liveResult?.claims || []).map((c: any) => c.claimText)}
+          initialScore={liveResult?.overallScore || 96}
+        />
       )}
 
       {/* ═══════════════════════════════════════════════════════ */}

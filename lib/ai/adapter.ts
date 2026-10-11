@@ -90,12 +90,12 @@ async function callGemini(prompt: string, jsonMode: boolean = true): Promise<str
     throw new Error('GEMINI_API_KEY not configured');
   }
 
-  // Valid Gemini models in priority order (gemini-2.0-flash is best for free tier)
+  // Valid Gemini models in priority order (gemini-3.8-flash is the primary active model)
   const candidateModels = [
+    'gemini-3.8-flash',
+    'gemini-2.5-flash',
     'gemini-2.0-flash',
     'gemini-1.5-flash',
-    'gemini-2.0-flash-exp',
-    'gemini-1.5-flash-8b',
   ];
 
   let lastError: any = null;
@@ -1086,12 +1086,12 @@ Return strictly valid JSON with this exact schema:
     matchedCreators,
     dualAiStatus: {
       geminiActive: true,
-      geminiModel: 'gemini-2.0-flash',
+      geminiModel: 'gemini-3.8-flash',
       sarvamActive: !!activeSarvamKey,
       sarvamModel: activeSarvamKey ? 'mayura:v1' : undefined,
       orchestrationNote: activeSarvamKey
-        ? 'Dual AI Engine active: Gemini 2.0 Flash + Sarvam AI mayura:v1'
-        : 'Gemini 2.0 Flash active. Add Sarvam AI API Key to enable dual Indic transcreation.'
+        ? 'Dual AI Engine active: Gemini 3.8 Flash + Sarvam AI mayura:v1'
+        : 'Gemini 3.8 Flash active. Add Sarvam AI API Key to enable dual Indic transcreation.'
     }
   };
 }

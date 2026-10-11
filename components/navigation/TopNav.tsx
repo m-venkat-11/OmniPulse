@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Home, ShieldCheck, Sparkles, FolderOpen, Plus,
   Share2, Users, ChevronDown, CheckCircle2, Globe2,
-  Key, Cpu, ExternalLink, X, Check, AlertCircle, RefreshCw
+  Key, Cpu, ExternalLink, X, Check, AlertCircle, RefreshCw, Palette
 } from "lucide-react";
 import { testSarvamApiKeyAction } from "@/app/actions";
 
@@ -36,6 +36,8 @@ export function TopNav({ userEmail = "director@braco.ai", initialTab }: TopNavPr
       setCurrentTab(tabParam);
     } else if (hash === "ad-evidence" || hash === "claims") {
       setCurrentTab("ad-evidence");
+    } else if (hash === "posters" || hash === "poster") {
+      setCurrentTab("posters");
     } else if (hash === "claim-graph" || hash === "graph") {
       setCurrentTab("graph");
     } else if (hash === "creators") {
@@ -63,7 +65,7 @@ export function TopNav({ userEmail = "director@braco.ai", initialTab }: TopNavPr
     return () => window.removeEventListener("switch-dashboard-tab", handleTabChange);
   }, [searchParams, initialTab]);
 
-  const handleSelectTab = (tab: "overview" | "ad-evidence" | "graph" | "creators") => {
+  const handleSelectTab = (tab: "overview" | "ad-evidence" | "posters" | "graph" | "creators") => {
     setCurrentTab(tab);
     if (typeof window !== "undefined") {
       // Notify page
@@ -111,6 +113,7 @@ export function TopNav({ userEmail = "director@braco.ai", initialTab }: TopNavPr
 
   const isOverview = (pathname === "/dashboard" || pathname === "/") && currentTab === "overview";
   const isAdEvidence = (pathname === "/dashboard" || pathname === "/") && currentTab === "ad-evidence";
+  const isPosters = (pathname === "/dashboard" || pathname === "/") && currentTab === "posters";
   const isGraph = (pathname === "/dashboard" || pathname === "/") && currentTab === "graph";
   const isCreators = (pathname === "/dashboard" || pathname === "/") && currentTab === "creators";
   const isNewCampaign = pathname.startsWith("/campaigns/new");
@@ -161,6 +164,18 @@ export function TopNav({ userEmail = "director@braco.ai", initialTab }: TopNavPr
           >
             <Sparkles size={12} className={isAdEvidence ? "text-emerald-400" : "text-emerald-500/70"} />
             <span>Ad-Evidence & Claims</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSelectTab("posters")}
+            style={{ backgroundColor: isPosters ? "#262C37" : "transparent" }}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap cursor-pointer border-none ${
+              isPosters ? "text-white" : "text-white/70 hover:text-white hover:bg-white/5"
+            }`}
+          >
+            <Palette size={12} className={isPosters ? "text-amber-400" : "text-amber-500/70"} />
+            <span>AI Ad Poster</span>
           </button>
 
           <button
