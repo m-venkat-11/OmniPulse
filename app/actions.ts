@@ -798,13 +798,16 @@ export async function analyzeAdEvidenceLiveAction(input: {
   adCopy: string;
   brandName?: string;
   productName?: string;
+  productCategory?: string;
+  targetLanguage?: string;
+  targetRegion?: string;
+  targetAudience?: string;
+  tone?: string;
+  productPhoto?: string;
+  brandGuidelinesDoc?: string;
 }) {
   const { detectClaimsAndBuildGraph } = await import('@/lib/ai/adapter');
-  const result = await detectClaimsAndBuildGraph(
-    input.adCopy,
-    input.brandName || 'Rasa Foods',
-    input.productName || 'Festive Millet Bites'
-  );
+  const result = await detectClaimsAndBuildGraph(input);
   return result;
 }
 
