@@ -1,12 +1,29 @@
 import { createClient, type Client } from "@libsql/client";
 import { randomUUID } from "crypto";
 
-const isVercel = process.env.VERCEL === "1";
-const dbUrl = process.env.TURSO_DATABASE_URL || (isVercel ? ":memory:" : "file:local.db");
+function getDatabaseUrl(): string {
+  const envUrl = process.env.TURSO_DATABASE_URL?.trim();
+  if (
+    envUrl &&
+    !envUrl.includes("SENSITIVE") &&
+    (envUrl.startsWith("libsql://") ||
+      envUrl.startsWith("https://") ||
+      envUrl.startsWith("http://") ||
+      envUrl.startsWith("file:") ||
+      envUrl === ":memory:")
+  ) {
+    return envUrl;
+  }
+  return process.env.VERCEL === "1" ? ":memory:" : "file:local.db";
+}
+
+const dbUrl = getDatabaseUrl();
+const rawToken = process.env.TURSO_AUTH_TOKEN?.trim();
+const authToken = rawToken && !rawToken.includes("SENSITIVE") ? rawToken : undefined;
 
 export const db: Client = createClient({
   url: dbUrl,
-  authToken: process.env.TURSO_AUTH_TOKEN,
+  authToken,
 });
 
 export function generateId(): string {
