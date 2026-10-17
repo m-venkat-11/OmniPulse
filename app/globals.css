@@ -1,198 +1,181 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Telugu:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Sans+Tamil:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&family=Noto+Sans+Malayalam:wght@400;500;600;700&family=Noto+Sans+Gujarati:wght@400;500;600;700&family=Noto+Sans+Gurmukhi:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=Noto+Sans+Telugu:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Sans+Tamil:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&family=Noto+Sans+Malayalam:wght@400;500;600;700&family=Noto+Sans+Gujarati:wght@400;500;600;700&family=Noto+Sans+Gurmukhi:wght@400;500;600;700&family=Noto+Sans+Oriya:wght@400;500;600;700&display=swap');
 
 @import "tailwindcss";
 
+/* ──────────────────────────────────────────────────
+   BRACO OMNIPULSE — DARK BENTO DESIGN SYSTEM
+   Matching Finance_app_design.jpg exactly:
+   • Outer: #6B6B6B swirl canvas (the tablet/phone border)
+   • Inner enclosure: #050505 with 40px radius
+   • Floating left pill rail: #111111
+   • Cards: #161616 to #1E1E1E  
+   • Accents: #2BD64F (neon green) & #FFE234 (yellow)
+   • Typography: Poppins (Latin/numerics) + Noto Indic
+────────────────────────────────────────────────── */
+
+:root {
+  /* Canvas & Shell */
+  --bg-canvas:       #6b6b6b;
+  --bg-app:          #050505;
+  --bg-card:         #161616;
+  --bg-card-subtle:  #1e1e1e;
+  --bg-pill:         #111111;
+  --bg-input:        #1c1c1c;
+  --bg-track:        #2a2a2a;
+
+  /* Accent Colors (from Finance_app_design.jpg) */
+  --accent-green:    #2bd64f;
+  --accent-yellow:   #ffe234;
+  --accent-red:      #ff5c5c;
+  --accent-blue:     #60a5fa;
+  --accent-white:    #ffffff;
+
+  /* Text */
+  --text-primary:    #ffffff;
+  --text-muted:      #a3a3a3;
+  --text-dim:        #666666;
+
+  /* Border */
+  --border-subtle:   #222222;
+  --border-active:   #333333;
+}
+
 html, body {
-  background-color: #0C0E14 !important;
-  color: #11141A;
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   min-height: 100vh;
   margin: 0;
   padding: 0;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ──────────────────────────────────────────────────
-   TAILWIND V4 THEME TOKENS
-   Defining custom tokens via CSS theme variables
-────────────────────────────────────────────────── */
-@theme inline {
-  /* ── Fonts ── */
-  --font-serif:   "Playfair Display", Georgia, serif;
-  --font-sans:    "Inter", system-ui, sans-serif;
-  --font-display: "Playfair Display", Georgia, serif;
-
-  /* ── Colors ── */
-  --color-forest:         #183B2B;
-  --color-forest-50:      #E8F0EC;
-  --color-forest-100:     #C5D8CB;
-  --color-forest-200:     #9EBFAA;
-  --color-forest-300:     #77A589;
-  --color-forest-400:     #508F68;
-  --color-forest-500:     #2D7348;
-  --color-forest-600:     #255E3B;
-  --color-forest-700:     #1E4A2E;
-  --color-forest-800:     #183B2B;
-  --color-forest-900:     #0E2419;
-
-  --color-ivory:          #F6F4ED;
-  --color-ivory-50:       #FDFCF9;
-  --color-ivory-100:      #F6F4ED;
-  --color-ivory-200:      #EDEADF;
-  --color-ivory-300:      #E4E0D1;
-  --color-ivory-400:      #DAD5C2;
-
-  --color-graphite:       #292D2B;
-  --color-graphite-100:   #C5C8C6;
-  --color-graphite-200:   #9EA3A0;
-  --color-graphite-300:   #777E7B;
-  --color-graphite-400:   #555B58;
-  --color-graphite-500:   #3C4240;
-  --color-graphite-600:   #292D2B;
-
-  --color-sage:           #DCE5D9;
-  --color-sage-50:        #F5F7F4;
-  --color-sage-100:       #DCE5D9;
-  --color-sage-200:       #C3D1BE;
-  --color-sage-300:       #AABCA4;
-  --color-sage-400:       #91A78A;
-
-  --color-brass:          #B39A67;
-  --color-brass-50:       #F5EFE3;
-  --color-brass-100:      #E6D5B0;
-  --color-brass-200:      #D4BA7D;
-  --color-brass-300:      #C2A050;
-  --color-brass-400:      #B39A67;
-  --color-brass-500:      #96803A;
-  --color-brass-600:      #7A6630;
-
-  /* ── Spacing ── */
-  --spacing-18:   4.5rem;
-  --spacing-22:   5.5rem;
-  --spacing-26:   6.5rem;
-  --spacing-30:   7.5rem;
-
-  /* ── Border radius ── */
-  --radius-4xl:   2rem;
-  --radius-5xl:   2.5rem;
-
-  /* ── Shadows ── */
-  --shadow-editorial:    0 1px 2px rgba(24,59,43,.04), 0 4px 16px rgba(24,59,43,.06);
-  --shadow-editorial-lg: 0 2px 4px rgba(24,59,43,.04), 0 8px 32px rgba(24,59,43,.10);
-  --shadow-brass:        0 4px 24px rgba(179,154,103,.18);
-
-  /* ── Animations ── */
-  --animate-fade-in:    fadeIn 0.6s ease-out both;
-  --animate-fade-up:    fadeUp 0.7s ease-out both;
-  --animate-spin-slow:  spin 20s linear infinite;
-  --animate-pulse-slow: pulse 4s cubic-bezier(0.4,0,0.6,1) infinite;
-
-  /* ── Font sizes ── */
-  --text-2xs:              0.625rem;
-  --text-2xs--line-height: 0.875rem;
+/* ─── Swirl canvas (Finance_app_design.jpg grey outer background) ─── */
+.canvas-swirl-bg {
+  background-color: #6b6b6b;
+  background-image:
+    radial-gradient(circle at 15% 20%, rgba(255,255,255,0.07) 0%, transparent 45%),
+    radial-gradient(circle at 85% 75%, rgba(255,255,255,0.08) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(255,255,255,0.03) 0%, transparent 60%),
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 60px,
+      rgba(255,255,255,0.012) 60px,
+      rgba(255,255,255,0.012) 120px
+    );
 }
 
-/* ── Keyframes ─────────────────────────────────── */
+/* ─── App enclosure: near-black container, 40px radius, shadow ─── */
+.app-enclosure {
+  background-color: var(--bg-app);
+  border-radius: 40px;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.04),
+    0 30px 80px -20px rgba(0,0,0,0.8),
+    0 8px 30px rgba(0,0,0,0.5);
+  min-height: calc(100vh - 48px);
+  position: relative;
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .app-enclosure {
+    border-radius: 0;
+    min-height: 100vh;
+  }
+  .canvas-swirl-bg {
+    padding: 0;
+  }
+}
+
+/* ─── Card bento tiles ─── */
+.bento-card {
+  background-color: var(--bg-card);
+  border-radius: 24px;
+  border: 1px solid var(--border-subtle);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+.bento-card:hover {
+  border-color: #333333;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+}
+
+/* ─── Indic text rendering ─── */
+.indic-text {
+  line-height: 1.65;
+  letter-spacing: 0.01em;
+}
+.indic-text[lang="te"] { font-family: "Noto Sans Telugu", sans-serif; }
+.indic-text[lang="hi"] { font-family: "Noto Sans Devanagari", sans-serif; }
+.indic-text[lang="mr"] { font-family: "Noto Sans Devanagari", sans-serif; }
+.indic-text[lang="ta"] { font-family: "Noto Sans Tamil", sans-serif; }
+.indic-text[lang="bn"] { font-family: "Noto Sans Bengali", sans-serif; }
+.indic-text[lang="kn"] { font-family: "Noto Sans Kannada", sans-serif; }
+.indic-text[lang="ml"] { font-family: "Noto Sans Malayalam", sans-serif; }
+.indic-text[lang="gu"] { font-family: "Noto Sans Gujarati", sans-serif; }
+.indic-text[lang="pa"] { font-family: "Noto Sans Gurmukhi", sans-serif; }
+.indic-text[lang="or"] { font-family: "Noto Sans Oriya", sans-serif; }
+
+/* ─── Micro-animations ─── */
 @keyframes fadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(24px); }
+  from { opacity: 0; transform: translateY(20px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-
-/* ── Base ──────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; }
-
-html {
-  scroll-behavior: smooth;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes pulseGreen {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(43,214,79,0.4); }
+  50%       { box-shadow: 0 0 0 8px rgba(43,214,79,0); }
 }
 
-body {
-  background-color: #0C0E14;
-  color: #11141A;
-  font-family: "Inter", system-ui, sans-serif;
-  font-size: 1rem;
-  line-height: 1.6;
-  min-height: 100dvh;
+.animate-fade-in    { animation: fadeIn 0.5s ease-out both; }
+.animate-fade-up    { animation: fadeUp 0.6s ease-out both; }
+.animate-slide-left { animation: slideInLeft 0.4s ease-out both; }
+.animate-pulse-green { animation: pulseGreen 2s ease-in-out infinite; }
+
+/* ─── Transition helpers ─── */
+.transition-smooth {
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* ── Scrollbar ─────────────────────────────────── */
-::-webkit-scrollbar       { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #F6F4ED; }
-::-webkit-scrollbar-thumb { background: #C0BDB4; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #A8A49A; }
-
-/* ── Focus ring ────────────────────────────────── */
-:focus-visible {
-  outline: 2px solid #B39A67;
-  outline-offset: 2px;
-  border-radius: 2px;
+/* ─── Print styles for Certificate/Passport ─── */
+@media print {
+  .canvas-swirl-bg { background: white; padding: 0; }
+  .app-enclosure { background: white; border-radius: 0; box-shadow: none; }
 }
 
-/* ── Reduced motion ─────────────────────────────── */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
+/* ─── Custom scrollbars ─── */
+::-webkit-scrollbar        { width: 5px; height: 5px; }
+::-webkit-scrollbar-track  { background: #111111; }
+::-webkit-scrollbar-thumb  { background: #2a2a2a; border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #444444; }
 
-/* ── Utility classes ─────────────────────────────── */
-.font-editorial { font-family: "Playfair Display", Georgia, serif; }
-.text-balance   { text-wrap: balance; }
-
-.border-editorial        { border: 1px solid rgba(24,59,43,0.10); }
-.border-editorial-strong { border: 1px solid rgba(24,59,43,0.18); }
-
-.text-gradient-brass {
-  background: linear-gradient(135deg, #B39A67 0%, #8C7A50 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+/* ─── Form input base style ─── */
+.dark-input {
+  background-color: var(--bg-input);
+  color: #ffffff;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-family: 'Poppins', sans-serif;
+  outline: none;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+  width: 100%;
 }
-
-.section-padding {
-  padding-top: 6rem;
-  padding-bottom: 6rem;
+.dark-input::placeholder { color: var(--text-dim); }
+.dark-input:focus {
+  border-color: #333333;
+  box-shadow: 0 0 0 3px rgba(43, 214, 79, 0.15);
 }
-@media (min-width: 1024px) {
-  .section-padding { padding-top: 8rem; padding-bottom: 8rem; }
+.dark-input.dark-input-rect {
+  border-radius: 16px;
 }
-
-.card-hover {
-  transition: transform 280ms cubic-bezier(0.25,0.1,0.25,1),
-              box-shadow 280ms cubic-bezier(0.25,0.1,0.25,1);
-}
-.card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 2px 4px rgba(24,59,43,.04), 0 8px 32px rgba(24,59,43,.10);
-}
-
-.divider-editorial {
-  height: 1px;
-  background: linear-gradient(90deg, transparent 0%, rgba(24,59,43,0.12) 30%, rgba(24,59,43,0.12) 70%, transparent 100%);
-}
-
-.tag-editorial {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  font-size: 0.6875rem;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #96803A;
-  padding: 0.25rem 0.625rem;
-  border: 1px solid rgba(179,154,103,0.35);
-  border-radius: 999px;
-  background: rgba(179,154,103,0.06);
-}
-
-.shadow-editorial    { box-shadow: 0 1px 2px rgba(24,59,43,.04), 0 4px 16px rgba(24,59,43,.06); }
-.shadow-editorial-lg { box-shadow: 0 2px 4px rgba(24,59,43,.04), 0 8px 32px rgba(24,59,43,.10); }
-.shadow-brass        { box-shadow: 0 4px 24px rgba(179,154,103,.18); }

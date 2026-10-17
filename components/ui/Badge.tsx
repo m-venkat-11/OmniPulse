@@ -1,7 +1,16 @@
 import React from "react";
-import { cn } from "@/lib/utils";
 
-type BadgeVariant = "default" | "forest" | "brass" | "sage" | "success" | "warning" | "danger" | "critical" | "neutral" | "demo";
+type BadgeVariant =
+  | "default"
+  | "forest"
+  | "brass"
+  | "sage"
+  | "success"
+  | "warning"
+  | "danger"
+  | "critical"
+  | "neutral"
+  | "demo";
 
 interface BadgeProps {
   variant?: BadgeVariant;
@@ -11,43 +20,43 @@ interface BadgeProps {
 }
 
 const variantStyles: Record<BadgeVariant, string> = {
-  default:  "bg-neutral-100 text-graphite border border-neutral-200",
-  forest:   "bg-forest/10 text-forest border border-forest/15",
-  brass:    "bg-brass/10 text-brass-600 border border-brass/20",
-  sage:     "bg-sage text-forest border border-sage-200",
-  success:  "bg-emerald-50 text-emerald-800 border border-emerald-200",
-  warning:  "bg-amber-50 text-amber-800 border border-amber-200",
-  danger:   "bg-red-50 text-red-800 border border-red-200",
-  critical: "bg-red-50 text-red-800 border border-red-200 font-semibold",
-  neutral:  "bg-neutral-100 text-neutral-600 border border-neutral-200",
-  demo:     "bg-brass/10 text-brass-600 border border-brass/30 font-medium",
+  default:  "bg-[#222222] text-[#CCCCCC] border border-[#333333]",
+  forest:   "bg-[#2BD64F]/10 text-[#2BD64F] border border-[#2BD64F]/20",
+  brass:    "bg-[#FFE234]/10 text-[#FFE234] border border-[#FFE234]/20",
+  sage:     "bg-[#333333] text-[#CCCCCC] border border-[#444444]",
+  success:  "bg-[#2BD64F]/15 text-[#2BD64F] border border-[#2BD64F]/30",
+  warning:  "bg-[#FFE234]/15 text-[#FFE234] border border-[#FFE234]/30",
+  danger:   "bg-[#FF5C5C]/15 text-[#FF5C5C] border border-[#FF5C5C]/30",
+  critical: "bg-[#FF5C5C]/20 text-[#FF5C5C] border border-[#FF5C5C]/40 font-semibold",
+  neutral:  "bg-[#1C1C1E] text-[#A3A3A3] border border-[#333333]",
+  demo:     "bg-[#FFE234]/10 text-[#FFE234] border border-[#FFE234]/30 font-medium",
 };
 
 const dotStyles: Record<BadgeVariant, string> = {
-  default: "bg-neutral-400",
-  forest:  "bg-forest",
-  brass:   "bg-brass",
-  sage:    "bg-forest/50",
-  success: "bg-emerald-500",
-  warning: "bg-amber-500",
-  danger:  "bg-red-500",
-  critical:"bg-red-500",
-  neutral: "bg-neutral-400",
-  demo:    "bg-brass",
+  default:  "bg-[#A3A3A3]",
+  forest:   "bg-[#2BD64F]",
+  brass:    "bg-[#FFE234]",
+  sage:     "bg-[#777777]",
+  success:  "bg-[#2BD64F]",
+  warning:  "bg-[#FFE234]",
+  danger:   "bg-[#FF5C5C]",
+  critical: "bg-[#FF5C5C]",
+  neutral:  "bg-[#666666]",
+  demo:     "bg-[#FFE234]",
 };
 
-export function Badge({ variant = "default", className, children, dot }: BadgeProps) {
+export function Badge({ variant = "default", className = "", children, dot }: BadgeProps) {
   return (
     <span
-      className={cn(
+      className={[
         "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5",
-        "text-2xs font-medium tracking-wide",
+        "text-xs font-medium tracking-wide",
         variantStyles[variant],
-        className
-      )}
+        className,
+      ].join(" ")}
     >
       {dot && (
-        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", dotStyles[variant])} />
+        <span className={["w-1.5 h-1.5 rounded-full shrink-0", dotStyles[variant]].join(" ")} />
       )}
       {children}
     </span>

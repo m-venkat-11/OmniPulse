@@ -768,13 +768,8 @@ export async function getCreatorBriefs(campaignId: string) {
   return res.rows;
 }
 
-// ═══════════════════════════════════════════════════════
-// OFFICIAL DEMO SEEDING ACTIONS (PRD SECTION 18)
-// ═══════════════════════════════════════════════════════
-
 export async function seedDemoCampaignAction(demoType: 'festive_snack' | 'personal_care' | 'public_awareness') {
-  const { seedDemoCampaign } = await import('@/lib/db/seedDemo');
-  return await seedDemoCampaign(demoType);
+  throw new Error("Demo seeding is disabled under the Zero Demo Data Rule. Create campaigns via the UI wizard.");
 }
 
 // ═══════════════════════════════════════════════════════

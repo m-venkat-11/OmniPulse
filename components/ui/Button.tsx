@@ -1,7 +1,6 @@
 import React from "react";
-import { cn } from "@/lib/utils";
 
-type Variant = "primary" | "secondary" | "ghost" | "brass" | "outline" | "danger";
+type Variant = "primary" | "secondary" | "ghost" | "outline" | "danger" | "brass";
 type Size    = "xs" | "sm" | "md" | "lg" | "xl";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -11,36 +10,29 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   icon?: React.ReactNode;
   iconRight?: React.ReactNode;
   fullWidth?: boolean;
-  asChild?: boolean;
 }
 
 const variantStyles: Record<Variant, string> = {
   primary:
-    "bg-forest text-ivory hover:bg-forest-700 active:bg-forest-900 " +
-    "shadow-editorial border border-transparent",
+    "bg-[#2BD64F] text-black hover:bg-[#22A63C] active:bg-[#1A7D2E] border border-transparent shadow-sm font-semibold",
   secondary:
-    "bg-sage text-forest hover:bg-sage-200 active:bg-sage-300 " +
-    "border border-transparent",
+    "bg-[#1C1C1E] text-white hover:bg-[#2A2A2A] border border-[#333333] font-medium",
   ghost:
-    "bg-transparent text-graphite hover:bg-sage-50 active:bg-sage-100 " +
-    "border border-transparent",
-  brass:
-    "bg-brass text-ivory hover:bg-brass-500 active:bg-brass-600 " +
-    "shadow-brass border border-transparent",
+    "bg-transparent text-[#A3A3A3] hover:bg-[#1C1C1E] hover:text-white border border-transparent font-medium",
   outline:
-    "bg-transparent text-forest hover:bg-sage-50 " +
-    "border border-forest/20 hover:border-forest/40",
+    "bg-transparent text-white hover:bg-[#1C1C1E] border border-[#333333] hover:border-[#555555] font-medium",
   danger:
-    "bg-red-700 text-white hover:bg-red-800 " +
-    "border border-transparent",
+    "bg-[#FF5C5C]/20 text-[#FF5C5C] hover:bg-[#FF5C5C]/30 border border-[#FF5C5C]/30 font-semibold",
+  brass:
+    "bg-[#FFE234] text-black hover:bg-[#F9CA00] border border-transparent shadow-sm font-semibold",
 };
 
 const sizeStyles: Record<Size, string> = {
-  xs: "h-7 px-3 text-xs gap-1.5",
-  sm: "h-8 px-4 text-sm gap-1.5",
-  md: "h-10 px-5 text-sm gap-2",
-  lg: "h-12 px-6 text-base gap-2",
-  xl: "h-14 px-8 text-base gap-2.5",
+  xs: "h-7 px-3 text-xs gap-1.5 rounded-full",
+  sm: "h-8 px-4 text-xs gap-1.5 rounded-full",
+  md: "h-10 px-5 text-sm gap-2 rounded-full",
+  lg: "h-12 px-6 text-sm gap-2 rounded-full",
+  xl: "h-14 px-8 text-base gap-2.5 rounded-full",
 };
 
 export function Button({
@@ -50,7 +42,7 @@ export function Button({
   icon,
   iconRight,
   fullWidth = false,
-  className,
+  className = "",
   children,
   disabled,
   ...props
@@ -58,21 +50,21 @@ export function Button({
   return (
     <button
       disabled={disabled || loading}
-      className={cn(
-        "inline-flex items-center justify-center font-sans font-medium",
-        "rounded-md transition-all duration-150 ease-editorial",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass/60 focus-visible:ring-offset-2",
-        "disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none",
+      className={[
+        "inline-flex items-center justify-center font-sans",
+        "transition-all duration-150",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2BD64F]/50",
+        "disabled:opacity-50 disabled:cursor-not-allowed",
         "select-none whitespace-nowrap tracking-tight",
         variantStyles[variant],
         sizeStyles[size],
-        fullWidth && "w-full",
-        className
-      )}
+        fullWidth ? "w-full" : "",
+        className,
+      ].join(" ")}
       {...props}
     >
       {loading ? (
-        <Spinner size={size} />
+        <Spinner />
       ) : (
         icon && <span className="shrink-0">{icon}</span>
       )}
@@ -82,11 +74,10 @@ export function Button({
   );
 }
 
-function Spinner({ size }: { size: Size }) {
-  const s = size === "xs" || size === "sm" ? "w-3.5 h-3.5" : "w-4 h-4";
+function Spinner() {
   return (
     <svg
-      className={cn(s, "animate-spin opacity-70")}
+      className="w-4 h-4 animate-spin opacity-70"
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
       viewBox="0 0 24 24"

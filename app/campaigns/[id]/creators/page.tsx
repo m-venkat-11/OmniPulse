@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -16,7 +16,7 @@ import {
 } from "@/app/actions";
 import { LANGUAGE_REGISTRY } from "@/lib/languages/registry";
 
-export default function CreatorMatchPage() {
+function CreatorMatchContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const campaignId = params.id as string;
@@ -306,3 +306,18 @@ Content SHA-256: ${selectedVariant.content_hash || 'Verified'}
     </div>
   );
 }
+
+export default function CreatorMatchPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="canvas-swirl-bg min-h-screen flex items-center justify-center text-white">
+          <div className="text-xs text-[#888888] font-mono animate-pulse">Loading Creator Matching...</div>
+        </div>
+      }
+    >
+      <CreatorMatchContent />
+    </React.Suspense>
+  );
+}
+

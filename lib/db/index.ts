@@ -87,17 +87,6 @@ export async function initializeDatabase() {
   await ensureDefaultWorkspace();
   await ensureDefaultUser();
 
-  try {
-    const existingCamp = await turso.execute("SELECT id FROM campaigns LIMIT 1");
-    if (existingCamp.rows.length === 0) {
-      const { seedDemoCampaign } = await import('@/lib/db/seedDemo');
-      await seedDemoCampaign('festive_snack');
-      console.log('[DB] Pre-seeded Demo 1 campaign for instant evaluation');
-    }
-  } catch (err) {
-    console.warn('[DB] Pre-seed check skipped:', err);
-  }
-
   initialized = true;
   console.log('[DB] Database initialized');
 }
