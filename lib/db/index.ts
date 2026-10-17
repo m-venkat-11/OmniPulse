@@ -15,6 +15,9 @@ export function generateId(): string {
 export async function runMigrations() {
   try {
     const schemaPath = path.join(process.cwd(), 'lib', 'db', 'schema.sql');
+    if (!fs.existsSync(schemaPath)) {
+      return;
+    }
     const schemaSql = fs.readFileSync(schemaPath, 'utf-8');
 
     // Clean SQL: remove line comments (-- ...) and block comments (/* ... */)

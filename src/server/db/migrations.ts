@@ -1,6 +1,7 @@
 import { db } from "./client";
-import fs from "fs";
-import path from "path";
+import { SCHEMA_SQL } from "./schemaSql";
+
+let migrated = false;
 
 /**
  * Splits SQL schema into executable statements, preserving SQLite trigger blocks
@@ -52,8 +53,6 @@ export function parseSqlStatements(rawSql: string): string[] {
   return statements.filter(s => s.length > 0);
 }
 
-let migrated = false;
-
 /**
  * Run migrations to ensure all 26 tables and immutability triggers exist.
  * No seed data is inserted. Fresh databases have 0 campaigns/creators/assets.
@@ -62,8 +61,7 @@ export async function runMigrations(): Promise<void> {
   if (migrated) return;
 
   try {
-    const schemaPath = path.join(process.cwd(), "src", "server", "db", "schema.sql");
-    const rawSql = fs.readFileSync(schemaPath, "utf-8");
+    const rawSql = SCHEMA_SQL;
     const statements = parseSqlStatements(rawSql);
 
     for (const stmt of statements) {
@@ -83,3 +81,4 @@ export async function runMigrations(): Promise<void> {
     throw err;
   }
 }
+
